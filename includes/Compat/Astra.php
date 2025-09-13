@@ -38,12 +38,6 @@ class Astra {
 					add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
 				}
 			}, 1 );
-			// Fallback: if Astra header isn't output (e.g., Canvas templates), render in wp_head
-			add_action( 'wp_head', function() {
-				if ( SegmentManager::get_current_segment() && ! did_action( 'astra_header' ) ) {
-					Renderer::render_header_template();
-				}
-			}, 5 );
 		}
 
 		if ( $has_footer ) {

@@ -23,6 +23,7 @@ class Renderer {
 
 		// If a segment is active, suppress Elementor Theme Builder header/footer to avoid duplicates.
 		add_filter( 'elementor/theme/should_render_location', [ __CLASS__, 'should_suppress_elementor_location' ], 10, 2 );
+		add_action( 'template_redirect', [ __CLASS__, 'maybe_remove_elementor_theme_hooks' ], 1 );
 	}
 
 	private static function get_template_id( string $slot ): int {
@@ -72,6 +73,16 @@ class Renderer {
 	public static function maybe_render_single_product_template( $template ) {
 		// Single product override removed; let Elementor Theme Builder handle it.
 		return $template;
+	}
+
+	public static function maybe_remove_elementor_theme_hooks(): void {
+		if ( ! SegmentManager::get_current_segment() ) {
+			return;
+		}
+		if ( function_exists( 'remove_all_actions' ) ) {
+			remove_all_actions( 'elementor/theme/header' );
+			remove_all_actions( 'elementor/theme/footer' );
+		}
 	}
 
 	private static function render_elementor_template( int $template_id ): void {
