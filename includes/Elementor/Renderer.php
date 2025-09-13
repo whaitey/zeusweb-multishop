@@ -42,6 +42,9 @@ class Renderer {
 	}
 
 	public static function render_header_template(): void {
+		if ( ! apply_filters( 'zw_ms_should_render_header_footer', true ) ) {
+			return;
+		}
 		$id = self::get_template_id( 'header' );
 		if ( $id ) {
 			self::render_elementor_template( $id );
@@ -49,6 +52,9 @@ class Renderer {
 	}
 
 	public static function render_footer_template(): void {
+		if ( ! apply_filters( 'zw_ms_should_render_header_footer', true ) ) {
+			return;
+		}
 		$id = self::get_template_id( 'footer' );
 		if ( $id ) {
 			self::render_elementor_template( $id );
@@ -62,6 +68,8 @@ class Renderer {
 			}
 			$id = self::get_template_id( 'single_product' );
 			if ( $id ) {
+				// Prevent segment header/footer on this page if template includes its own header/footer
+				add_filter( 'zw_ms_should_render_header_footer', '__return_false', 10 );
 				// Render inside the_content to preserve theme wrappers
 				add_filter( 'the_content', function () use ( $id ) {
 					ob_start();
