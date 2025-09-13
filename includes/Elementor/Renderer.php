@@ -20,6 +20,9 @@ class Renderer {
 			add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
 			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
 		}
+
+		// If a segment is active, suppress Elementor Theme Builder header/footer to avoid duplicates.
+		add_filter( 'elementor/theme/should_render_location', [ __CLASS__, 'should_suppress_elementor_location' ], 10, 2 );
 	}
 
 	private static function get_template_id( string $slot ): int {
@@ -56,6 +59,14 @@ class Renderer {
 		if ( $id ) {
 			self::render_elementor_template( $id );
 		}
+	}
+
+	public static function should_suppress_elementor_location( $should_render, $location ) {
+		$segment = SegmentManager::get_current_segment();
+		if ( $segment && in_array( $location, [ 'header', 'footer' ], true ) ) {
+			return false;
+		}
+		return $should_render;
 	}
 
 	public static function maybe_render_single_product_template( $template ) {
