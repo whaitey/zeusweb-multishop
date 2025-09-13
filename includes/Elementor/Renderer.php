@@ -30,6 +30,10 @@ class Renderer {
 			if ( function_exists( 'is_product' ) && is_product() ) {
 				return;
 			}
+			// If Astra is active, rely on AstraCompat hooks to render header/footer to avoid duplicates.
+			if ( $is_astra ) {
+				return;
+			}
 			add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
 			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
 		}, 2 );
