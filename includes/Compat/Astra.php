@@ -29,12 +29,13 @@ class Astra {
 		$has_footer = (int) get_option( 'zw_ms_tpl_footer_consumer', 0 ) || (int) get_option( 'zw_ms_tpl_footer_business', 0 );
 
 		if ( $has_header ) {
-			// Also render at Astra markup top (keep generic injection too)
-			add_action( 'astra_header_markup_before', [ Renderer::class, 'render_header_template' ], 5 );
+			// Render inside Astra header region
+			add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
 		}
 
 		if ( $has_footer ) {
-			add_action( 'astra_footer_markup_before', [ Renderer::class, 'render_footer_template' ], 5 );
+			// Render inside Astra footer region
+			add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
 		}
 	}
 }

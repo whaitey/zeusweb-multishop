@@ -63,6 +63,8 @@ class Manager {
 				}
 			}
 		}
+
+		// If no PATH_VAR was set (i.e., base /lakossagi or /uzleti), do not alter request; let WP load the page content.
 		return $request;
 	}
 
