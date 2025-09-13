@@ -10,8 +10,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Renderer {
 	public static function init(): void {
-		// Header/Footer injection: for themes that support wp_body_open and wp_footer
+		// Header/Footer injection: generic hooks for broad theme support
 		add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
+		add_action( 'get_header', function(){ ob_start(); }, 0 );
+		add_action( 'wp_head', function(){ $buf = ob_get_clean(); echo $buf; }, 9999 );
+		add_action( 'get_footer', function(){ ob_start(); }, 0 );
+		add_action( 'wp_footer', function(){ $buf = ob_get_clean(); echo $buf; }, 0 );
 		add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
 
 		// Single product override using template_include to inject Elementor template content

@@ -29,14 +29,11 @@ class Astra {
 		$has_footer = (int) get_option( 'zw_ms_tpl_footer_consumer', 0 ) || (int) get_option( 'zw_ms_tpl_footer_business', 0 );
 
 		if ( $has_header ) {
-			// Avoid double render from generic injection
-			remove_action( 'wp_body_open', [ Renderer::class, 'render_header_template' ], 5 );
-			// Render our template at Astra markup top to ensure visibility
+			// Also render at Astra markup top (keep generic injection too)
 			add_action( 'astra_header_markup_before', [ Renderer::class, 'render_header_template' ], 5 );
 		}
 
 		if ( $has_footer ) {
-			remove_action( 'wp_footer', [ Renderer::class, 'render_footer_template' ], 5 );
 			add_action( 'astra_footer_markup_before', [ Renderer::class, 'render_footer_template' ], 5 );
 		}
 	}
