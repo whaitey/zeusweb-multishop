@@ -21,6 +21,14 @@ class Renderer {
 			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
 		}
 
+		// Safety net: if a segment is active, also inject via generic hooks at runtime (covers edge templates)
+		add_action( 'template_redirect', function () use ( $is_astra ) {
+			if ( SegmentManager::get_current_segment() ) {
+				add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
+				add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
+			}
+		}, 2 );
+
 		// If a segment is active, suppress Elementor Theme Builder header/footer to avoid duplicates.
 		add_filter( 'elementor/theme/should_render_location', [ __CLASS__, 'should_suppress_elementor_location' ], 10, 2 );
 		add_action( 'template_redirect', [ __CLASS__, 'maybe_remove_elementor_theme_hooks' ], 1 );
