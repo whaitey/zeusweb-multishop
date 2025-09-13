@@ -13,6 +13,7 @@ use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
 use ZeusWeb\Multishop\Admin\Menu as AdminMenu;
 use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
+use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -50,6 +51,14 @@ class Plugin {
 		Logger::instance();
 		DBLogger::init();
 
+		// Ensure critical options exist even if activation hook didn't run (e.g., after manual install/update).
+		if ( ! get_option( $this->site_id_option_key ) ) {
+			$this->generate_site_id();
+		}
+		if ( ! get_option( $this->secret_option_key ) ) {
+			$this->generate_secret();
+		}
+
 		// Later steps will hook: routing, pricing, REST, Elementor, etc.
 		SegmentManager::init();
 		ProductMeta::init();
@@ -58,6 +67,7 @@ class Plugin {
 		AdminMenu::init();
 		RestRoutes::init();
 		SecondaryHooks::init();
+		ElementorRenderer::init();
 	}
 
 	public function activate() {
