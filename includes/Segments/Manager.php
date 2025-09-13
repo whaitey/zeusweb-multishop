@@ -16,6 +16,7 @@ class Manager {
 		add_action( 'init', [ __CLASS__, 'register_rewrites' ] );
 		add_filter( 'request', [ __CLASS__, 'rewrite_request_path' ] );
 		add_action( 'template_redirect', [ __CLASS__, 'handle_segment_entry' ], 1 );
+		add_action( 'init', [ __CLASS__, 'maybe_set_segment_from_param' ], 1 );
 	}
 
 	public static function register_query_vars( array $vars ): array {
@@ -64,6 +65,16 @@ class Manager {
 		}
 		// Refresh cookie for 30 days.
 		setcookie( self::COOKIE, $current, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+	}
+
+	public static function maybe_set_segment_from_param(): void {
+		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
+			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
+				// Set cookie immediately; cart emptying will occur on next template_redirect in handle_segment_entry
+				setcookie( self::COOKIE, $seg, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+			}
+		}
 	}
 
 	public static function get_current_segment(): string {
