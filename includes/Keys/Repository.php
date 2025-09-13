@@ -49,6 +49,20 @@ class Repository {
 		}
 		return $inserted;
 	}
+
+	public static function update_available_key( int $id, string $new_encrypted ): bool {
+		global $wpdb;
+		$table = Tables::keys();
+		$updated = $wpdb->update( $table, [ 'key_enc' => $new_encrypted ], [ 'id' => $id, 'status' => 'available' ], [ '%s' ], [ '%d', '%s' ] );
+		return ( $updated !== false );
+	}
+
+	public static function delete_available_key( int $id ): bool {
+		global $wpdb;
+		$table = Tables::keys();
+		$deleted = $wpdb->delete( $table, [ 'id' => $id, 'status' => 'available' ], [ '%d', '%s' ] );
+		return ( $deleted !== false );
+	}
 }
 
 

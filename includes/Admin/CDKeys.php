@@ -118,41 +118,78 @@ class CDKeys {
 	}
 
 	private static function render_available_keys( int $product_id ): void {
-		$keys = self::get_available_keys( $product_id, 500 );
+		list( $rows, $keys_plain ) = self::get_available_key_rows( $product_id, 500 );
 		?>
 		<h3><?php esc_html_e( 'Available keys (first 500)', 'zeusweb-multishop' ); ?></h3>
-		<?php if ( empty( $keys ) ) : ?>
+		<?php if ( empty( $rows ) ) : ?>
 			<p><?php esc_html_e( 'No available keys for this product.', 'zeusweb-multishop' ); ?></p>
 		<?php else : ?>
-			<p><em><?php esc_html_e( 'These are decrypted for admin visibility only.', 'zeusweb-multishop' ); ?></em></p>
-			<textarea readonly class="large-text" rows="10" style="font-family:monospace;">
-			<?php echo esc_textarea( implode( "\n", $keys ) ); ?>
-			</textarea>
+			<p><em><?php esc_html_e( 'These are decrypted for admin visibility only. You can edit or delete individual keys below.', 'zeusweb-multishop' ); ?></em></p>
+			<table class="widefat striped">
+				<thead><tr><th><?php esc_html_e( 'ID', 'zeusweb-multishop' ); ?></th><th><?php esc_html_e( 'Key', 'zeusweb-multishop' ); ?></th><th><?php esc_html_e( 'Actions', 'zeusweb-multishop' ); ?></th></tr></thead>
+				<tbody>
+					<?php foreach ( $rows as $idx => $row ) : $id = (int) $row['id']; $plain = $keys_plain[$idx] ?? ''; ?>
+					<tr>
+						<td><?php echo esc_html( (string) $id ); ?></td>
+						<td>
+							<form method="post" style="display:flex;gap:6px;align-items:center;">
+								<?php wp_nonce_field( 'zw_ms_keys_save', 'zw_ms_keys_nonce' ); ?>
+								<input type="hidden" name="product_id" value="<?php echo esc_attr( $product_id ); ?>" />
+								<input type="hidden" name="key_id" value="<?php echo esc_attr( $id ); ?>" />
+								<input type="text" name="key_value" value="<?php echo esc_attr( $plain ); ?>" class="regular-text" style="width:100%;" />
+								<button class="button button-primary" name="zw_ms_action" value="update_key"><?php esc_html_e( 'Save', 'zeusweb-multishop' ); ?></button>
+								<button class="button" name="zw_ms_action" value="delete_key" onclick="return confirm('Delete this key?');"><?php esc_html_e( 'Delete', 'zeusweb-multishop' ); ?></button>
+							</form>
+						</td>
+						<td></td>
+					</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
 		<?php endif; ?>
 		<?php
 	}
 
-	private static function get_available_keys( int $product_id, int $limit = 500 ): array {
+	private static function get_available_key_rows( int $product_id, int $limit = 500 ): array {
 		global $wpdb;
 		$table = Tables::keys();
-		$rows  = $wpdb->get_col( $wpdb->prepare( "SELECT key_enc FROM {$table} WHERE product_id = %d AND status = 'available' ORDER BY id ASC LIMIT %d", $product_id, $limit ) );
+		$rows  = $wpdb->get_results( $wpdb->prepare( "SELECT id, key_enc FROM {$table} WHERE product_id = %d AND status = 'available' ORDER BY id ASC LIMIT %d", $product_id, $limit ), ARRAY_A );
 		$keys  = [];
 		if ( empty( $rows ) ) {
-			return $keys;
+			return [ [], [] ];
 		}
-		foreach ( $rows as $enc ) {
+		foreach ( $rows as $r ) {
 			try {
-				$keys[] = Crypto::decrypt( (string) $enc );
+				$keys[] = Crypto::decrypt( (string) $r['key_enc'] );
 			} catch ( \Throwable $e ) {
 				// Skip invalid/decrypt-failed entries
 			}
 		}
-		return $keys;
+		return [ $rows, $keys ];
 	}
 
 	private static function handle_submit(): void {
 		$product_id = isset( $_POST['product_id'] ) ? absint( $_POST['product_id'] ) : 0;
 		if ( ! $product_id ) {
+			return;
+		}
+		$action = isset( $_POST['zw_ms_action'] ) ? sanitize_text_field( wp_unslash( $_POST['zw_ms_action'] ) ) : '';
+		if ( $action === 'update_key' && isset( $_POST['key_id'], $_POST['key_value'] ) ) {
+			$key_id = absint( $_POST['key_id'] );
+			$new_plain = (string) wp_unslash( $_POST['key_value'] );
+			if ( $key_id && $new_plain !== '' ) {
+				$enc = Crypto::encrypt( $new_plain );
+				\ZeusWeb\Multishop\Keys\Repository::update_available_key( $key_id, $enc );
+				add_settings_error( 'zw_ms_keys', 'key_updated', __( 'Key updated.', 'zeusweb-multishop' ), 'updated' );
+			}
+			return;
+		}
+		if ( $action === 'delete_key' && isset( $_POST['key_id'] ) ) {
+			$key_id = absint( $_POST['key_id'] );
+			if ( $key_id ) {
+				\ZeusWeb\Multishop\Keys\Repository::delete_available_key( $key_id );
+				add_settings_error( 'zw_ms_keys', 'key_deleted', __( 'Key deleted.', 'zeusweb-multishop' ), 'updated' );
+			}
 			return;
 		}
 		$keys = [];
