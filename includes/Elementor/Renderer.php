@@ -55,31 +55,28 @@ class Renderer {
 		if ( function_exists( 'is_product' ) && is_product() ) {
 			$id = self::get_template_id( 'single_product' );
 			if ( $id ) {
-				self::output_fullscreen_template( $id );
-				// Return a minimal blank template to avoid double content
-				return self::get_blank_template_path();
+				// Render inside the_content to preserve theme wrappers
+				add_filter( 'the_content', function () use ( $id ) {
+					ob_start();
+					self::render_elementor_template( $id );
+					return ob_get_clean();
+				}, 9999 );
 			}
 		}
 		return $template;
 	}
 
 	private static function render_elementor_template( int $template_id ): void {
+		if ( $template_id <= 0 ) { return; }
 		if ( did_action( 'elementor/loaded' ) ) {
 			echo \Elementor\Plugin::instance()->frontend->get_builder_content_for_display( $template_id );
+			return;
 		}
+		// Fallback via shortcode if Elementor not fully loaded here
+		echo do_shortcode( '[elementor-template id="' . intval( $template_id ) . '"]' );
 	}
 
-	private static function output_fullscreen_template( int $template_id ): void {
-		get_header();
-		self::render_elementor_template( $template_id );
-		get_footer();
-	}
 
-	private static function get_blank_template_path(): string {
-		// Use WordPress bundled blank template if available; fallback to plugin-provided minimal empty file.
-		$blank = ABSPATH . WPINC . '/theme-compat/embed.php';
-		return file_exists( $blank ) ? $blank : __FILE__;
-	}
 }
 
 
