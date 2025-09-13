@@ -57,6 +57,9 @@ class Renderer {
 
 	public static function maybe_render_single_product_template( $template ) {
 		if ( function_exists( 'is_product' ) && is_product() ) {
+			if ( get_option( 'zw_ms_enable_single_product_template', 'no' ) !== 'yes' ) {
+				return $template;
+			}
 			$id = self::get_template_id( 'single_product' );
 			if ( $id ) {
 				// Render inside the_content to preserve theme wrappers
