@@ -92,8 +92,11 @@ class Manager {
 				WC()->cart->empty_cart();
 			}
 		}
-		// Refresh cookie for 30 days.
+		// Refresh cookie for 30 days and persist in WooCommerce session if available.
 		setcookie( self::COOKIE, $current, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			WC()->session->set( self::COOKIE, $current );
+		}
 
         // Do not alter base pages' content; if user created pages at /lakossagi or /uzleti, let WP render them.
 	}
@@ -104,6 +107,9 @@ class Manager {
 			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
 				// Set cookie immediately; cart emptying will occur on next template_redirect in handle_segment_entry
 				setcookie( self::COOKIE, $seg, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+				if ( function_exists( 'WC' ) && WC()->session ) {
+					WC()->session->set( self::COOKIE, $seg );
+				}
 			}
 		}
 	}
@@ -117,7 +123,17 @@ class Manager {
 		if ( $from_path ) {
 			return $from_path;
 		}
-		return isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+		if ( $from_cookie ) {
+			return $from_cookie;
+		}
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			$from_session = (string) WC()->session->get( self::COOKIE, '' );
+			if ( $from_session ) {
+				return $from_session;
+			}
+		}
+		return '';
 	}
 
 	private static function detect_segment_from_path(): string {

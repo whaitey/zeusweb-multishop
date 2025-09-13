@@ -49,12 +49,6 @@ class Astra {
 					add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
 				}
 			}, 1 );
-			// Fallback: if Astra footer isn't output, render at wp_footer
-			add_action( 'wp_footer', function() {
-				if ( SegmentManager::get_current_segment() && ! did_action( 'astra_footer' ) ) {
-					Renderer::render_footer_template();
-				}
-			}, 5 );
 		}
 	}
 }
