@@ -23,10 +23,19 @@ class Renderer {
 
 		// Safety net: if a segment is active, also inject via generic hooks at runtime (covers edge templates)
 		add_action( 'template_redirect', function () use ( $is_astra ) {
-			if ( SegmentManager::get_current_segment() ) {
-				add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
-				add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
+			if ( ! SegmentManager::get_current_segment() ) {
+				return;
 			}
+			// Avoid duplicate injection on product pages; Astra compat handles those.
+			if ( function_exists( 'is_product' ) && is_product() ) {
+				return;
+			}
+			// If Astra header/footer actions have callbacks, rely on those and skip generic injection.
+			if ( has_action( 'astra_header' ) || has_action( 'astra_footer' ) ) {
+				return;
+			}
+			add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
+			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
 		}, 2 );
 
 		// If a segment is active, suppress Elementor Theme Builder header/footer to avoid duplicates.
