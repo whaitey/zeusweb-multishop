@@ -26,11 +26,15 @@ class Manager {
 	}
 
 	public static function register_rewrites(): void {
-		// Consumer: /lakossagi/...
-		add_rewrite_rule( '^lakossagi/?$', 'index.php?' . self::QUERY_VAR . '=consumer', 'top' );
+		// Consumer: /lakossagi/... (base rule only if a page with this slug doesn't exist)
+		if ( ! get_page_by_path( 'lakossagi' ) ) {
+			add_rewrite_rule( '^lakossagi/?$', 'index.php?' . self::QUERY_VAR . '=consumer', 'top' );
+		}
 		add_rewrite_rule( '^lakossagi/(.*)$', 'index.php?' . self::QUERY_VAR . '=consumer&' . self::PATH_VAR . '=$matches[1]', 'top' );
-		// Business: /uzleti/...
-		add_rewrite_rule( '^uzleti/?$', 'index.php?' . self::QUERY_VAR . '=business', 'top' );
+		// Business: /uzleti/... (base rule only if a page with this slug doesn't exist)
+		if ( ! get_page_by_path( 'uzleti' ) ) {
+			add_rewrite_rule( '^uzleti/?$', 'index.php?' . self::QUERY_VAR . '=business', 'top' );
+		}
 		add_rewrite_rule( '^uzleti/(.*)$', 'index.php?' . self::QUERY_VAR . '=business&' . self::PATH_VAR . '=$matches[1]', 'top' );
 	}
 
@@ -89,18 +93,7 @@ class Manager {
 		// Refresh cookie for 30 days.
 		setcookie( self::COOKIE, $current, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
 
-		// If we are exactly on /lakossagi or /uzleti without a path, redirect to configured landing page if set.
-		$path = trim( (string) ( get_query_var( self::PATH_VAR ) ?: '' ), '/' );
-		if ( $path === '' ) {
-			$page_id = $current === 'business' ? (int) get_option( 'zw_ms_page_business', 0 ) : (int) get_option( 'zw_ms_page_consumer', 0 );
-			if ( $page_id ) {
-				$target = get_permalink( $page_id );
-				if ( $target ) {
-					wp_safe_redirect( $target );
-					exit;
-				}
-			}
-		}
+        // Do not alter base pages' content; if user created pages at /lakossagi or /uzleti, let WP render them.
 	}
 
 	public static function maybe_set_segment_from_param(): void {

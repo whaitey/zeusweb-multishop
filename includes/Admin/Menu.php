@@ -68,9 +68,6 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_tpl_single_product_consumer' );
 		register_setting( 'zw_ms', 'zw_ms_tpl_single_product_business' );
 
-		// Segment landing pages
-		register_setting( 'zw_ms', 'zw_ms_page_consumer' );
-		register_setting( 'zw_ms', 'zw_ms_page_business' );
 	}
 
 	public static function render_settings_page(): void {
@@ -126,22 +123,6 @@ class Menu {
 								</p>
 								<p>
 									<label>Single Product (Business) <input name="zw_ms_tpl_single_product_business" type="number" value="<?php echo esc_attr( get_option( 'zw_ms_tpl_single_product_business', '' ) ); ?>" /></label>
-								</p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Segment landing pages', 'zeusweb-multishop' ); ?></th>
-							<td>
-								<?php $consumer_page = (int) get_option( 'zw_ms_page_consumer', 0 ); $business_page = (int) get_option( 'zw_ms_page_business', 0 ); ?>
-								<p>
-									<label><?php esc_html_e( 'Consumer landing page', 'zeusweb-multishop' ); ?>
-										<?php wp_dropdown_pages( [ 'name' => 'zw_ms_page_consumer', 'echo' => 1, 'selected' => $consumer_page, 'show_option_none' => __( '-- Select page --', 'zeusweb-multishop' ) ] ); ?>
-									</label>
-								</p>
-								<p>
-									<label><?php esc_html_e( 'Business landing page', 'zeusweb-multishop' ); ?>
-										<?php wp_dropdown_pages( [ 'name' => 'zw_ms_page_business', 'echo' => 1, 'selected' => $business_page, 'show_option_none' => __( '-- Select page --', 'zeusweb-multishop' ) ] ); ?>
-									</label>
 								</p>
 							</td>
 						</tr>
