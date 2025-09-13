@@ -82,7 +82,23 @@ class Manager {
 		if ( $segment === 'consumer' || $segment === 'business' ) {
 			return $segment;
 		}
+		$from_path = self::detect_segment_from_path();
+		if ( $from_path ) {
+			return $from_path;
+		}
 		return isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+	}
+
+	private static function detect_segment_from_path(): string {
+		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = strtok( $uri, '?' );
+		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
+			return 'consumer';
+		}
+		if ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
+			return 'business';
+		}
+		return '';
 	}
 
 	public static function is_business(): bool {

@@ -3,7 +3,7 @@
 Plugin Name: ZeusWeb Multishop
 Plugin URI: https://zeusweb.example
 Description: Multishop system for WooCommerce with Primary/Secondary architecture, Consumer/Business segments, CD key allocation, and Elementor templates.
-Version: 0.1.6
+Version: 0.1.7
 Author: ZeusWeb
 Author URI: https://zeusweb.example
 Text Domain: zeusweb-multishop
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Constants
-define( 'ZW_MS_VERSION', '0.1.6' );
+define( 'ZW_MS_VERSION', '0.1.7' );
 define( 'ZW_MS_PLUGIN_FILE', __FILE__ );
 define( 'ZW_MS_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'ZW_MS_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
