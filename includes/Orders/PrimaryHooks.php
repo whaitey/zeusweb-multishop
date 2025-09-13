@@ -38,6 +38,7 @@ class PrimaryHooks {
 		$site_id = (string) get_option( 'zw_ms_site_id', 'primary' );
 		$alloc   = KeysService::allocate_for_items( $site_id, (string) $order->get_id(), $items );
 		self::attach_keys_to_order( $order, $alloc );
+		self::maybe_send_customer_email( $order );
 	}
 
 	private static function attach_keys_to_order( \WC_Order $order, array $allocations ): void {
@@ -58,6 +59,25 @@ class PrimaryHooks {
 			}
 		}
 		$order->save();
+	}
+
+	private static function maybe_send_customer_email( \WC_Order $order ): void {
+		try {
+			$status = $order->get_status();
+			$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+			if ( empty( $emails ) ) { return; }
+			foreach ( $emails as $email ) {
+				if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
+				if ( $status === 'processing' && $email instanceof \WC_Email_Customer_Processing_Order ) {
+					$email->trigger( $order->get_id() );
+				}
+				if ( $status === 'completed' && $email instanceof \WC_Email_Customer_Completed_Order ) {
+					$email->trigger( $order->get_id() );
+				}
+			}
+		} catch ( \Throwable $e ) {
+			Logger::instance()->log( 'error', 'Failed to send customer email after allocation', [ 'order_id' => $order->get_id(), 'error' => $e->getMessage() ] );
+		}
 	}
 }
 
