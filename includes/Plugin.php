@@ -15,6 +15,7 @@ use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
 use ZeusWeb\Multishop\Orders\PrimaryHooks;
 use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
+use ZeusWeb\Multishop\Templates\CanvasEnforcer;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 
@@ -74,6 +75,9 @@ class Plugin {
 		add_action( 'admin_menu', function() {
 			add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );
 		} );
+
+		// Enforce Elementor Canvas template site-wide (per user request)
+		CanvasEnforcer::init();
 		ElementorRenderer::init();
 		AstraCompat::init();
 	}
