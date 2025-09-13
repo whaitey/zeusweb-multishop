@@ -27,6 +27,7 @@ class CDKeys {
 
 	private static function render_manage_product( int $product_id ): void {
 		self::render_stats( $product_id );
+		self::render_available_keys( $product_id );
 		?>
 		<hr />
 		<form method="post" enctype="multipart/form-data">
@@ -114,6 +115,39 @@ class CDKeys {
 		global $wpdb;
 		$table = Tables::keys();
 		return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE product_id = %d AND status = %s", $product_id, $status ) );
+	}
+
+	private static function render_available_keys( int $product_id ): void {
+		$keys = self::get_available_keys( $product_id, 500 );
+		?>
+		<h3><?php esc_html_e( 'Available keys (first 500)', 'zeusweb-multishop' ); ?></h3>
+		<?php if ( empty( $keys ) ) : ?>
+			<p><?php esc_html_e( 'No available keys for this product.', 'zeusweb-multishop' ); ?></p>
+		<?php else : ?>
+			<p><em><?php esc_html_e( 'These are decrypted for admin visibility only.', 'zeusweb-multishop' ); ?></em></p>
+			<textarea readonly class="large-text" rows="10" style="font-family:monospace;">
+			<?php echo esc_textarea( implode( "\n", $keys ) ); ?>
+			</textarea>
+		<?php endif; ?>
+		<?php
+	}
+
+	private static function get_available_keys( int $product_id, int $limit = 500 ): array {
+		global $wpdb;
+		$table = Tables::keys();
+		$rows  = $wpdb->get_col( $wpdb->prepare( "SELECT key_enc FROM {$table} WHERE product_id = %d AND status = 'available' ORDER BY id ASC LIMIT %d", $product_id, $limit ) );
+		$keys  = [];
+		if ( empty( $rows ) ) {
+			return $keys;
+		}
+		foreach ( $rows as $enc ) {
+			try {
+				$keys[] = Crypto::decrypt( (string) $enc );
+			} catch ( \Throwable $e ) {
+				// Skip invalid/decrypt-failed entries
+			}
+		}
+		return $keys;
 	}
 
 	private static function handle_submit(): void {
