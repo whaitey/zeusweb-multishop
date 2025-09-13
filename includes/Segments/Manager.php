@@ -38,9 +38,17 @@ class Manager {
 		if ( isset( $request[ self::PATH_VAR ] ) && is_string( $request[ self::PATH_VAR ] ) ) {
 			$path = trim( (string) $request[ self::PATH_VAR ], '/' );
 			unset( $request[ self::PATH_VAR ] );
-			// Parse the rest of the path by overriding the main request.
-			// This lets WordPress route as if the prefix wasn't there.
-			$request = self::parse_path_into_request( $path, $request );
+			// Try to resolve a single post/page/product by path. If found, set 'p' to avoid 404s.
+			$maybe_id = self::resolve_path_to_post_id( $path );
+			if ( $maybe_id ) {
+				$post_type = get_post_type( $maybe_id ) ?: 'post';
+				$request['p'] = $maybe_id;
+				$request['post_type'] = $post_type;
+				unset( $request['pagename'] );
+			} else {
+				// Fallback minimal: set pagename so regular pages still work
+				$request = self::parse_path_into_request( $path, $request );
+			}
 		}
 		return $request;
 	}
@@ -50,6 +58,12 @@ class Manager {
 		// For archives/singles/taxonomies, WordPress will still resolve via its own rules using the path.
 		$request['pagename'] = $path;
 		return $request;
+	}
+
+	private static function resolve_path_to_post_id( string $path ): int {
+		$home = home_url( '/' . ltrim( $path, '/' ) . '/' );
+		$id = url_to_postid( $home );
+		return (int) $id;
 	}
 
 	public static function handle_segment_entry(): void {
