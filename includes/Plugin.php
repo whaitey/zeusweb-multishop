@@ -14,6 +14,7 @@ use ZeusWeb\Multishop\Admin\Menu as AdminMenu;
 use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
+use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -68,6 +69,7 @@ class Plugin {
 		RestRoutes::init();
 		SecondaryHooks::init();
 		ElementorRenderer::init();
+		AstraCompat::init();
 	}
 
 	public function activate() {
