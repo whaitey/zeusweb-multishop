@@ -13,6 +13,8 @@ use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
 use ZeusWeb\Multishop\Admin\Menu as AdminMenu;
 use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
+use ZeusWeb\Multishop\Orders\PrimaryHooks;
+use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 
@@ -68,6 +70,10 @@ class Plugin {
 		AdminMenu::init();
 		RestRoutes::init();
 		SecondaryHooks::init();
+		PrimaryHooks::init();
+		add_action( 'admin_menu', function() {
+			add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );
+		} );
 		ElementorRenderer::init();
 		AstraCompat::init();
 	}

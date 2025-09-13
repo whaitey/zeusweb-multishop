@@ -40,13 +40,7 @@ class SecondaryHooks {
 			'site_id' => get_option( 'zw_ms_site_id' ),
 			'order_id' => (string) $order->get_id(),
 			'customer_segment' => SegmentManager::is_business() ? 'business' : 'consumer',
-			'items' => array_values( array_map( function ( $item ) {
-				return [
-					'product_id' => (int) $item->get_product_id(),
-					'variation_id' => (int) $item->get_variation_id(),
-					'quantity' => (int) $item->get_quantity(),
-				];
-			}, $order->get_items() ) ),
+			'items' => self::build_allocation_items( $order ),
 		];
 		$body = wp_json_encode( $body_data );
 
@@ -72,6 +66,26 @@ class SecondaryHooks {
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
 		}
+	}
+
+	private static function build_allocation_items( \WC_Order $order ): array {
+		$items = [];
+		foreach ( $order->get_items() as $item_id => $item ) {
+			// If this is a bundled child item (WooCommerce Product Bundles), include it; skip container bundle items
+			$bundled_by = $item->get_meta( '_bundled_by', true );
+			$product   = $item->get_product();
+			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+			if ( $is_bundle_container ) {
+				continue;
+			}
+			// Include all non-container items (simple, variation, or bundled children)
+			$items[] = [
+				'product_id'   => (int) $item->get_product_id(),
+				'variation_id' => (int) $item->get_variation_id(),
+				'quantity'     => (int) $item->get_quantity(),
+			];
+		}
+		return $items;
 	}
 
 	private static function attach_keys_to_order( \WC_Order $order, array $allocations ): void {
