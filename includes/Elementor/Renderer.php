@@ -33,10 +33,7 @@ class Renderer {
 				return (int) get_option( 'zw_ms_tpl_footer_consumer', 0 );
 			case 'footer_business':
 				return (int) get_option( 'zw_ms_tpl_footer_business', 0 );
-			case 'single_product_consumer':
-				return (int) get_option( 'zw_ms_tpl_single_product_consumer', 0 );
-			case 'single_product_business':
-				return (int) get_option( 'zw_ms_tpl_single_product_business', 0 );
+			// Single product handled by Elementor Theme Builder
 		}
 		return 0;
 	}
@@ -62,22 +59,7 @@ class Renderer {
 	}
 
 	public static function maybe_render_single_product_template( $template ) {
-		if ( function_exists( 'is_product' ) && is_product() ) {
-			if ( get_option( 'zw_ms_enable_single_product_template', 'no' ) !== 'yes' ) {
-				return $template;
-			}
-			$id = self::get_template_id( 'single_product' );
-			if ( $id ) {
-				// Prevent segment header/footer on this page if template includes its own header/footer
-				add_filter( 'zw_ms_should_render_header_footer', '__return_false', 10 );
-				// Render inside the_content to preserve theme wrappers
-				add_filter( 'the_content', function () use ( $id ) {
-					ob_start();
-					self::render_elementor_template( $id );
-					return ob_get_clean();
-				}, 9999 );
-			}
-		}
+		// Single product override removed; let Elementor Theme Builder handle it.
 		return $template;
 	}
 

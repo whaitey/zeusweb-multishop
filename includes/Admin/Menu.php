@@ -65,9 +65,7 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_tpl_header_business' );
 		register_setting( 'zw_ms', 'zw_ms_tpl_footer_consumer' );
 		register_setting( 'zw_ms', 'zw_ms_tpl_footer_business' );
-		register_setting( 'zw_ms', 'zw_ms_tpl_single_product_consumer' );
-		register_setting( 'zw_ms', 'zw_ms_tpl_single_product_business' );
-		register_setting( 'zw_ms', 'zw_ms_enable_single_product_template' );
+		// Single product template override removed; Elementor Theme Builder handles single product.
 
 	}
 
@@ -119,20 +117,7 @@ class Menu {
 								<p>
 									<label>Footer (Business) <input name="zw_ms_tpl_footer_business" type="number" value="<?php echo esc_attr( get_option( 'zw_ms_tpl_footer_business', '' ) ); ?>" /></label>
 								</p>
-								<p>
-									<label>Single Product (Consumer) <input name="zw_ms_tpl_single_product_consumer" type="number" value="<?php echo esc_attr( get_option( 'zw_ms_tpl_single_product_consumer', '' ) ); ?>" /></label>
-								</p>
-								<p>
-									<label>Single Product (Business) <input name="zw_ms_tpl_single_product_business" type="number" value="<?php echo esc_attr( get_option( 'zw_ms_tpl_single_product_business', '' ) ); ?>" /></label>
-								</p>
-								<p>
-									<label>
-										<input type="checkbox" name="zw_ms_enable_single_product_template" value="yes" <?php checked( get_option( 'zw_ms_enable_single_product_template', 'no' ), 'yes' ); ?> />
-										<?php esc_html_e( 'Enable Elementor override for single product page', 'zeusweb-multishop' ); ?>
-									</label>
-									<br />
-									<em><?php esc_html_e( 'If disabled, default WooCommerce single product layout is used.', 'zeusweb-multishop' ); ?></em>
-								</p>
+								<!-- Single product override removed; managed by Elementor Theme Builder conditions. -->
 							</td>
 						</tr>
 					</tbody>
