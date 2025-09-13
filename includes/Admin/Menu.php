@@ -12,6 +12,7 @@ class Menu {
 	public static function init(): void {
 		add_action( 'admin_menu', [ __CLASS__, 'register_menu' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
+		add_action( 'admin_bar_menu', [ __CLASS__, 'add_adminbar_segment_switch' ], 100 );
 	}
 
 	public static function register_menu(): void {
@@ -27,6 +28,28 @@ class Menu {
 		add_submenu_page( 'zw-ms', __( 'Settings', 'zeusweb-multishop' ), __( 'Settings', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms', [ __CLASS__, 'render_settings_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Sites', 'zeusweb-multishop' ), __( 'Sites', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-sites', [ __CLASS__, 'render_sites_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Logs', 'zeusweb-multishop' ), __( 'Logs', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-logs', [ __CLASS__, 'render_logs_page' ] );
+	}
+
+	public static function add_adminbar_segment_switch( \WP_Admin_Bar $wp_admin_bar ): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
+		$wp_admin_bar->add_menu( [
+			'id'    => 'zw-ms-segment',
+			'title' => 'Multishop Segment',
+			'href'  => '#',
+		] );
+		$base = remove_query_arg( [ 'zw_ms_set_segment' ] );
+		$wp_admin_bar->add_node( [
+			'parent' => 'zw-ms-segment',
+			'id'     => 'zw-ms-segment-consumer',
+			'title'  => 'Consumer',
+			'href'   => add_query_arg( 'zw_ms_set_segment', 'consumer', $base ),
+		] );
+		$wp_admin_bar->add_node( [
+			'parent' => 'zw-ms-segment',
+			'id'     => 'zw-ms-segment-business',
+			'title'  => 'Business',
+			'href'   => add_query_arg( 'zw_ms_set_segment', 'business', $base ),
+		] );
 	}
 
 	public static function register_settings(): void {

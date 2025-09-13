@@ -31,17 +31,18 @@ class Astra {
 		if ( $has_header ) {
 			// Avoid double render from generic injection
 			remove_action( 'wp_body_open', [ Renderer::class, 'render_header_template' ], 5 );
-			// Hide Astra native header
-			add_filter( 'astra_enable_header', '__return_false', 50 );
-			// Render Elementor at Astra header hook position
+			// Remove Astra default header callbacks and render our Elementor template within header container
+			if ( function_exists( 'remove_all_actions' ) ) {
+				remove_all_actions( 'astra_header' );
+			}
 			add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
 		}
 
 		if ( $has_footer ) {
 			remove_action( 'wp_footer', [ Renderer::class, 'render_footer_template' ], 5 );
-			// Hide Astra native footer
-			add_filter( 'astra_enable_footer', '__return_false', 50 );
-			// Render Elementor at Astra footer hook position
+			if ( function_exists( 'remove_all_actions' ) ) {
+				remove_all_actions( 'astra_footer' );
+			}
 			add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
 		}
 	}
