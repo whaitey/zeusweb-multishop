@@ -10,16 +10,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Renderer {
 	public static function init(): void {
-		// Header/Footer injection: generic hooks for broad theme support
-		add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
-		add_action( 'get_header', function(){ ob_start(); }, 0 );
-		add_action( 'wp_head', function(){ $buf = ob_get_clean(); echo $buf; }, 9999 );
-		add_action( 'get_footer', function(){ ob_start(); }, 0 );
-		add_action( 'wp_footer', function(){ $buf = ob_get_clean(); echo $buf; }, 0 );
-		add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
-
 		// Single product override using template_include to inject Elementor template content
 		add_filter( 'template_include', [ __CLASS__, 'maybe_render_single_product_template' ], 99 );
+
+		// Only use generic header/footer injection when not Astra; Astra compat handles it.
+		$theme = wp_get_theme();
+		$is_astra = $theme && ( $theme->get_template() === 'astra' || stripos( (string) $theme->get( 'Name' ), 'astra' ) !== false );
+		if ( ! $is_astra ) {
+			add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
+			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
+		}
 	}
 
 	private static function get_template_id( string $slot ): int {

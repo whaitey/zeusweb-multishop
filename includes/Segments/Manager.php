@@ -88,6 +88,19 @@ class Manager {
 		}
 		// Refresh cookie for 30 days.
 		setcookie( self::COOKIE, $current, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+
+		// If we are exactly on /lakossagi or /uzleti without a path, redirect to configured landing page if set.
+		$path = trim( (string) ( get_query_var( self::PATH_VAR ) ?: '' ), '/' );
+		if ( $path === '' ) {
+			$page_id = $current === 'business' ? (int) get_option( 'zw_ms_page_business', 0 ) : (int) get_option( 'zw_ms_page_consumer', 0 );
+			if ( $page_id ) {
+				$target = get_permalink( $page_id );
+				if ( $target ) {
+					wp_safe_redirect( $target );
+					exit;
+				}
+			}
+		}
 	}
 
 	public static function maybe_set_segment_from_param(): void {
