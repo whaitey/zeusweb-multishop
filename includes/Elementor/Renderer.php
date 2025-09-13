@@ -66,6 +66,7 @@ class Renderer {
 		$id = self::get_template_id( 'header' );
 		if ( $id ) {
 			self::render_elementor_template( $id );
+			do_action( 'zw_ms/header_rendered' );
 		}
 	}
 
@@ -76,6 +77,7 @@ class Renderer {
 		$id = self::get_template_id( 'footer' );
 		if ( $id ) {
 			self::render_elementor_template( $id );
+			do_action( 'zw_ms/footer_rendered' );
 		}
 	}
 

@@ -30,25 +30,22 @@ class Astra {
 		$has_footer = (int) get_option( 'zw_ms_tpl_footer_consumer', 0 ) || (int) get_option( 'zw_ms_tpl_footer_business', 0 );
 
 		if ( $has_header ) {
-			add_action( 'template_redirect', function() {
-				if ( SegmentManager::get_current_segment() ) {
-					if ( function_exists( 'remove_all_actions' ) ) {
-						remove_all_actions( 'astra_header' );
-					}
-					add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
+			// Prefer Astra slots; if none render, fallback to wp_body_open
+			add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
+			add_action( 'wp_body_open', function() {
+				if ( SegmentManager::get_current_segment() && ! did_action( 'zw_ms/header_rendered' ) ) {
+					Renderer::render_header_template();
 				}
-			}, 1 );
+			}, 5 );
 		}
 
 		if ( $has_footer ) {
-			add_action( 'template_redirect', function() {
-				if ( SegmentManager::get_current_segment() ) {
-					if ( function_exists( 'remove_all_actions' ) ) {
-						remove_all_actions( 'astra_footer' );
-					}
-					add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
+			add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
+			add_action( 'wp_footer', function() {
+				if ( SegmentManager::get_current_segment() && ! did_action( 'zw_ms/footer_rendered' ) ) {
+					Renderer::render_footer_template();
 				}
-			}, 1 );
+			}, 5 );
 		}
 	}
 }
