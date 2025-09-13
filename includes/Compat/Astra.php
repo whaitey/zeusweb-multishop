@@ -31,11 +31,23 @@ class Astra {
 		if ( $has_header ) {
 			// Render inside Astra header region
 			add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
+			// Fallback: if Astra header isn't output (e.g., Canvas templates), render in wp_head
+			add_action( 'wp_head', function() {
+				if ( ! did_action( 'astra_header' ) ) {
+					Renderer::render_header_template();
+				}
+			}, 5 );
 		}
 
 		if ( $has_footer ) {
 			// Render inside Astra footer region
 			add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
+			// Fallback: if Astra footer isn't output, render at wp_footer
+			add_action( 'wp_footer', function() {
+				if ( ! did_action( 'astra_footer' ) ) {
+					Renderer::render_footer_template();
+				}
+			}, 5 );
 		}
 	}
 }
