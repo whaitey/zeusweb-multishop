@@ -46,8 +46,17 @@ class Manager {
 				$request['post_type'] = $post_type;
 				unset( $request['pagename'] );
 			} else {
-				// Fallback minimal: set pagename so regular pages still work
-				$request = self::parse_path_into_request( $path, $request );
+				// WooCommerce product fallback by slug (last segment) when using category-based permalinks
+				$segments = array_values( array_filter( explode( '/', $path ) ) );
+				$last = $segments ? end( $segments ) : '';
+				if ( $last ) {
+					$request['name'] = $last;
+					$request['post_type'] = 'product';
+					unset( $request['pagename'] );
+				} else {
+					// Fallback minimal: set pagename so regular pages still work
+					$request = self::parse_path_into_request( $path, $request );
+				}
 			}
 		}
 		return $request;
