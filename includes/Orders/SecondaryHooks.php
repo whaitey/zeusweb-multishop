@@ -4,6 +4,7 @@ namespace ZeusWeb\Multishop\Orders;
 
 use ZeusWeb\Multishop\Segments\Manager as SegmentManager;
 use ZeusWeb\Multishop\Logger\Logger;
+use ZeusWeb\Multishop\Emails\CustomSender;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -65,6 +66,10 @@ class SecondaryHooks {
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
+			// If custom-only mode, send customer email from Secondary too
+			if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) {
+				CustomSender::send_order_keys_email( $order );
+			}
 		}
 	}
 
