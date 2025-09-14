@@ -49,6 +49,10 @@ class PrimaryHooks {
 		if ( $mode !== 'primary' ) {
 			return;
 		}
+		// Skip mirrored orders (handled by REST mirror endpoint)
+		if ( 'yes' === (string) $order->get_meta( '_zw_ms_mirrored' ) || '' !== (string) $order->get_meta( '_zw_ms_remote_order_id' ) ) {
+			return;
+		}
 		// Prevent double-processing
 		if ( 'yes' === (string) $order->get_meta( '_zw_ms_allocated' ) ) {
 			return;
@@ -67,9 +71,7 @@ class PrimaryHooks {
 		foreach ( $order->get_items() as $item ) {
 			$product = $item->get_product();
 			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
-			if ( $is_bundle_container ) {
-				continue; // skip bundle parent; children will be separate line items
-			}
+			if ( $is_bundle_container ) { continue; }
 			$items[] = [
 				'product_id'   => (int) $item->get_product_id(),
 				'variation_id' => (int) $item->get_variation_id(),
