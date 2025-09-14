@@ -56,6 +56,7 @@ class Meta {
 		echo esc_textarea( (string) $value );
 		echo '</textarea>';
 		echo '<p class="description">' . esc_html__( 'HTML allowed. This content will be sent with the order email for this product.', 'zeusweb-multishop' ) . '</p>';
+		echo '<p class="description">' . esc_html__( 'Placeholders: {product_name}, {quantity}, {keys}, {keys_html}, {keys_raw}, {shortage_note}', 'zeusweb-multishop' ) . '</p>';
 		wp_nonce_field( 'zw_ms_save_email', 'zw_ms_email_nonce' );
 	}
 
