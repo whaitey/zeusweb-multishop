@@ -23,6 +23,9 @@ class Manager {
 		// Handle cart clearing on segment switch
 		add_action( 'template_redirect', [ __CLASS__, 'maybe_clear_cart' ], 1 );
 		
+		// Add JavaScript cookie setter as fallback
+		add_action( 'wp_head', [ __CLASS__, 'js_cookie_setter' ], 1 );
+		
 		// Add debug notice for admins
 		add_action( 'wp_footer', [ __CLASS__, 'show_debug_notice' ], 9999 );
 	}
@@ -113,12 +116,22 @@ class Manager {
 			
 			// Mark if segment changed for cart clearing
 			if ( $current_cookie && $current_cookie !== $new_segment ) {
+				if ( ! session_id() ) {
+					@session_start();
+				}
 				$_SESSION['_zw_ms_segment_switched'] = true;
 			}
 			
-			// Set the cookie
+			// Try to set the cookie via PHP
 			self::set_segment_cookie( $new_segment );
+			
+			// Update superglobal immediately
 			$_COOKIE[ self::COOKIE ] = $new_segment;
+			
+			// Store in WooCommerce session as backup
+			if ( function_exists( 'WC' ) && WC()->session ) {
+				WC()->session->set( self::COOKIE, $new_segment );
+			}
 		}
 		
 		// If URL param was used, redirect to clean URL
@@ -135,6 +148,9 @@ class Manager {
 	 * Clear cart if segment was switched
 	 */
 	public static function maybe_clear_cart(): void {
+		if ( ! session_id() ) {
+			@session_start();
+		}
 		if ( isset( $_SESSION['_zw_ms_segment_switched'] ) && $_SESSION['_zw_ms_segment_switched'] ) {
 			if ( function_exists( 'WC' ) && WC()->cart ) {
 				WC()->cart->empty_cart();
@@ -148,6 +164,7 @@ class Manager {
 	 */
 	private static function set_segment_cookie( string $value ): void {
 		if ( headers_sent() ) {
+			// Can't set cookie via PHP, will use JavaScript fallback
 			return;
 		}
 		
@@ -160,7 +177,7 @@ class Manager {
 				'path'     => '/',
 				'domain'   => '', // Let browser determine
 				'secure'   => is_ssl(),
-				'httponly' => false, // Allow JS access for debugging
+				'httponly' => false, // Allow JS access
 				'samesite' => 'Lax',
 			] );
 		} else {
@@ -169,14 +186,102 @@ class Manager {
 	}
 
 	/**
+	 * JavaScript fallback for setting cookies when headers are already sent
+	 */
+	public static function js_cookie_setter(): void {
+		// Determine what segment should be set based on current context
+		$segment_to_set = null;
+		
+		// Check URL parameter
+		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
+			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
+				$segment_to_set = $seg;
+			}
+		}
+		
+		// Check path
+		if ( ! $segment_to_set ) {
+			$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+			$path = strtok( $uri, '?' );
+			if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
+				$segment_to_set = 'consumer';
+			} elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
+				$segment_to_set = 'business';
+			}
+		}
+		
+		if ( $segment_to_set ) {
+			?>
+			<script type="text/javascript">
+			(function() {
+				var segmentToSet = '<?php echo esc_js( $segment_to_set ); ?>';
+				var cookieName = '<?php echo esc_js( self::COOKIE ); ?>';
+				
+				// Get current cookie value
+				var currentCookie = '';
+				var cookies = document.cookie.split(';');
+				for (var i = 0; i < cookies.length; i++) {
+					var cookie = cookies[i].trim();
+					if (cookie.indexOf(cookieName + '=') === 0) {
+						currentCookie = cookie.substring(cookieName.length + 1);
+						break;
+					}
+				}
+				
+				// Set cookie if different
+				if (currentCookie !== segmentToSet) {
+					var expires = new Date();
+					expires.setTime(expires.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days
+					document.cookie = cookieName + '=' + segmentToSet + '; expires=' + expires.toUTCString() + '; path=/; SameSite=Lax';
+					
+					// If we just set the cookie, reload the page to apply it
+					if (currentCookie && currentCookie !== segmentToSet) {
+						// Segment changed, reload to apply
+						window.location.reload();
+					}
+				}
+			})();
+			</script>
+			<?php
+		}
+	}
+
+	/**
 	 * Get the current segment
 	 */
 	public static function get_current_segment(): string {
-		// Simply return what's in the cookie
+		// 1. Check if we're forcing a segment via URL
+		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
+			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
+				return $seg;
+			}
+		}
+		
+		// 2. Check path
+		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = strtok( $uri, '?' );
+		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
+			return 'consumer';
+		} elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
+			return 'business';
+		}
+		
+		// 3. Check cookie
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		if ( in_array( $from_cookie, [ 'consumer', 'business' ], true ) ) {
 			return $from_cookie;
 		}
+		
+		// 4. Check WooCommerce session
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			$from_session = (string) WC()->session->get( self::COOKIE, '' );
+			if ( in_array( $from_session, [ 'consumer', 'business' ], true ) ) {
+				return $from_session;
+			}
+		}
+		
 		return '';
 	}
 
@@ -207,10 +312,17 @@ class Manager {
 			$path_detect = 'business';
 		}
 		
+		// Check WC session
+		$session_val = 'not set';
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			$session_val = (string) WC()->session->get( self::COOKIE, 'not set' );
+		}
+		
 		echo '<div style="position: fixed; bottom: 10px; right: 10px; background: #333; color: #fff; padding: 10px; z-index: 99999; font-size: 12px; border-radius: 5px;">';
 		echo '<strong>Multishop Debug:</strong><br>';
 		echo 'Current Segment: <strong>' . ( $segment ?: 'none' ) . '</strong><br>';
 		echo 'Cookie: ' . esc_html( $cookie ) . '<br>';
+		echo 'WC Session: ' . esc_html( $session_val ) . '<br>';
 		echo 'Query Var: ' . esc_html( $query_var ) . '<br>';
 		echo 'GET Param: ' . esc_html( $param ) . '<br>';
 		echo 'Path Detect: ' . esc_html( $path_detect ) . '<br>';
