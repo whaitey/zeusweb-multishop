@@ -192,6 +192,22 @@ class Routes {
 			if ( $has_stripe_child && ! in_array( 'stripe', $out, true ) ) { $out[] = 'stripe'; }
 			$allowed = array_values( array_unique( $out ) );
 		}
+		// Fallback: if requested site_id has no mapping but only one site exists in matrix, use that mapping
+		if ( empty( $allowed ) && is_array( $matrix ) && count( $matrix ) === 1 ) {
+			$only = array_values( $matrix )[0];
+			if ( is_array( $only ) && is_array( $only[ $segment ] ?? null ) ) {
+				$raw = array_values( array_map( 'strval', $only[ $segment ] ) );
+				$has_stripe_child = false; $out = [];
+				foreach ( $raw as $id ) {
+					if ( strpos( (string) $id, 'stripe_' ) === 0 ) { $has_stripe_child = true; continue; }
+					$out[] = $id;
+				}
+				if ( $has_stripe_child && ! in_array( 'stripe', $out, true ) ) { $out[] = 'stripe'; }
+				$allowed = array_values( array_unique( $out ) );
+				Logger::instance()->log( 'info', 'payments-config using single-site fallback', [ 'requested_site' => $site_id, 'segment' => $segment, 'allowed' => $allowed ] );
+			}
+		}
+		Logger::instance()->log( 'info', 'payments-config response', [ 'site_id' => $site_id, 'segment' => $segment, 'allowed' => $allowed ] );
 		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
 	}
 }
