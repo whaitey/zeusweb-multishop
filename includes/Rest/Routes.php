@@ -182,7 +182,15 @@ class Routes {
 		if ( ! is_array( $matrix ) ) { $matrix = []; }
 		$allowed = [];
 		if ( $site_id !== '' && isset( $matrix[ $site_id ] ) && isset( $matrix[ $site_id ][ $segment ] ) && is_array( $matrix[ $site_id ][ $segment ] ) ) {
-			$allowed = array_values( array_map( 'strval', $matrix[ $site_id ][ $segment ] ) );
+			$raw = array_values( array_map( 'strval', $matrix[ $site_id ][ $segment ] ) );
+			// Normalize any legacy stripe_* entries into a single 'stripe'
+			$has_stripe_child = false; $out = [];
+			foreach ( $raw as $id ) {
+				if ( strpos( (string) $id, 'stripe_' ) === 0 ) { $has_stripe_child = true; continue; }
+				$out[] = $id;
+			}
+			if ( $has_stripe_child && ! in_array( 'stripe', $out, true ) ) { $out[] = 'stripe'; }
+			$allowed = array_values( array_unique( $out ) );
 		}
 		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
 	}

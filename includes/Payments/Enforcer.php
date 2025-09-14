@@ -57,19 +57,25 @@ class Enforcer {
 		$secret  = (string) get_option( 'zw_ms_primary_secret', '' );
 		if ( ! $primary || ! $secret ) { return []; }
 		$site_id = (string) get_option( 'zw_ms_site_id', '' );
-		$path = '/zw-ms/v1/payments-config?site_id=' . rawurlencode( $site_id ) . '&segment=' . rawurlencode( $segment );
+		// Sign ONLY the route path (no query) to match server verify_hmac
+		$unsigned_path = '/zw-ms/v1/payments-config';
 		$method = 'GET';
 		$timestamp = (string) time();
 		$nonce = wp_generate_uuid4();
 		$body = '';
-		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $secret );
-		$url = rtrim( $primary, '/' ) . '/wp-json' . $path;
+		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $unsigned_path, $timestamp, $nonce, $body, $secret );
+		$url = rtrim( $primary, '/' ) . '/wp-json' . $unsigned_path . '?site_id=' . rawurlencode( $site_id ) . '&segment=' . rawurlencode( $segment );
 		$args = [ 'headers' => [ 'X-ZW-Timestamp' => $timestamp, 'X-ZW-Nonce' => $nonce, 'X-ZW-Signature' => $signature, 'Accept' => 'application/json' ], 'timeout' => 15 ];
 		$response = wp_remote_get( $url, $args );
 		if ( is_wp_error( $response ) ) { return []; }
 		$code = (int) wp_remote_retrieve_response_code( $response );
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		if ( $code !== 200 || ! is_array( $data ) || ! is_array( $data['allowed'] ?? null ) ) { return []; }
+		$body_json = wp_remote_retrieve_body( $response );
+		if ( $code !== 200 ) {
+			Logger::instance()->log( 'warning', 'payments-config fetch non-200', [ 'code' => $code, 'body' => substr( $body_json, 0, 300 ) ] );
+			return [];
+		}
+		$data = json_decode( $body_json, true );
+		if ( ! is_array( $data ) || ! is_array( $data['allowed'] ?? null ) ) { return []; }
 		$allowed = array_values( array_map( 'strval', $data['allowed'] ) );
 		set_transient( $cache_key, $allowed, 10 * MINUTE_IN_SECONDS );
 		return $allowed;
