@@ -16,7 +16,7 @@ class OrdersColumns {
 
 		// WooCommerce HPOS/new orders screen (wc-orders)
 		add_filter( 'manage_woocommerce_page_wc-orders_columns', [ __CLASS__, 'add_columns' ], 20 );
-		add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_column_post' ], 20, 2 );
+		add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ __CLASS__, 'render_column_wc' ], 20, 2 );
 
 		// Woo List Table convenience hooks
 		add_filter( 'woocommerce_shop_order_list_table_columns', [ __CLASS__, 'add_columns' ], 20 );
