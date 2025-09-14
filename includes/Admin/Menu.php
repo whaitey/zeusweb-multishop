@@ -59,6 +59,8 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_site_id' );
 		register_setting( 'zw_ms', 'zw_ms_secret' );
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
+        register_setting( 'zw_ms', 'zw_ms_enable_custom_email_only' );
+        register_setting( 'zw_ms', 'zw_ms_custom_email_subject' );
 
 		// Elementor template IDs
 		register_setting( 'zw_ms', 'zw_ms_tpl_header_consumer' );
@@ -102,6 +104,18 @@ class Menu {
 								<textarea name="zw_ms_shortage_message" class="large-text" rows="4"><?php echo esc_textarea( get_option( 'zw_ms_shortage_message', __( 'Some keys are delayed and will arrive within 24 hours.', 'zeusweb-multishop' ) ) ); ?></textarea>
 							</td>
 						</tr>
+                        <tr>
+                            <th scope="row"><?php esc_html_e( 'Custom email only (disable Woo customer emails)', 'zeusweb-multishop' ); ?></th>
+                            <td>
+                                <label><input type="checkbox" name="zw_ms_enable_custom_email_only" value="yes" <?php checked( get_option( 'zw_ms_enable_custom_email_only', 'no' ), 'yes' ); ?> /> <?php esc_html_e( 'Send only the custom keys email to customers', 'zeusweb-multishop' ); ?></label>
+                                <p>
+                                    <label><?php esc_html_e( 'Custom email subject', 'zeusweb-multishop' ); ?>
+                                        <input type="text" class="regular-text" name="zw_ms_custom_email_subject" value="<?php echo esc_attr( get_option( 'zw_ms_custom_email_subject', 'Your {site_name} order keys (#{order_number})' ) ); ?>" />
+                                    </label>
+                                </p>
+                                <p class="description"><?php esc_html_e( 'Body is built from per-product custom emails with placeholders.', 'zeusweb-multishop' ); ?></p>
+                            </td>
+                        </tr>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'Elementor Templates (IDs)', 'zeusweb-multishop' ); ?></th>
 							<td>

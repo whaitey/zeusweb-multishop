@@ -4,6 +4,7 @@ namespace ZeusWeb\Multishop\Orders;
 
 use ZeusWeb\Multishop\Keys\Service as KeysService;
 use ZeusWeb\Multishop\Logger\Logger;
+use ZeusWeb\Multishop\Emails\CustomSender;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -39,6 +40,9 @@ class PrimaryHooks {
 		$alloc   = KeysService::allocate_for_items( $site_id, (string) $order->get_id(), $items );
 		self::attach_keys_to_order( $order, $alloc );
 		self::maybe_send_customer_email( $order );
+		if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) {
+			CustomSender::send_order_keys_email( $order );
+		}
 	}
 
 	private static function attach_keys_to_order( \WC_Order $order, array $allocations ): void {
