@@ -69,6 +69,103 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_tpl_footer_business' );
 		// Single product template override removed; Elementor Theme Builder handles single product.
 
+		// Handle sync action
+		add_action( 'admin_init', function() {
+			if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
+			if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) { return; }
+			if ( ! isset( $_POST['zw_ms_action'] ) || $_POST['zw_ms_action'] !== 'sync_catalog' ) { return; }
+			if ( ! isset( $_POST['zw_ms_sync_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_sync_nonce'] ) ), 'zw_ms_sync_catalog' ) ) { return; }
+			if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return; }
+			self::handle_sync_catalog();
+		} );
+	}
+
+	private static function handle_sync_catalog(): void {
+		$primary = (string) get_option( 'zw_ms_primary_url', '' );
+		$secret  = (string) get_option( 'zw_ms_secret', '' );
+		if ( ! $primary || ! $secret ) {
+			add_settings_error( 'zw_ms', 'sync_missing', __( 'Primary URL or secret missing.', 'zeusweb-multishop' ), 'error' );
+			return;
+		}
+		$path = '/wp-json/zw-ms/v1/catalog';
+		$method = 'GET';
+		$timestamp = (string) time();
+		$nonce = wp_generate_uuid4();
+		$body = '';
+		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $secret );
+		$url = rtrim( $primary, '/' ) . $path;
+		$args = [
+			'headers' => [
+				'X-ZW-Timestamp' => $timestamp,
+				'X-ZW-Nonce' => $nonce,
+				'X-ZW-Signature' => $signature,
+				'Accept' => 'application/json',
+			],
+			'timeout' => 30,
+		];
+		$response = wp_remote_get( $url, $args );
+		if ( is_wp_error( $response ) ) {
+			add_settings_error( 'zw_ms', 'sync_error', $response->get_error_message(), 'error' );
+			return;
+		}
+		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( ! is_array( $data ) || ! is_array( $data['items'] ?? null ) ) {
+			add_settings_error( 'zw_ms', 'sync_invalid', __( 'Invalid catalog response.', 'zeusweb-multishop' ), 'error' );
+			return;
+		}
+		$created = 0; $updated = 0; $skipped = 0;
+		foreach ( $data['items'] as $row ) {
+			$sku = trim( (string) ( $row['sku'] ?? '' ) );
+			if ( $sku === '' ) { $skipped++; continue; }
+			$title = (string) ( $row['title'] ?? $sku );
+			$price = isset( $row['price'] ) ? (float) $row['price'] : 0;
+			$business_price = isset( $row['business_price'] ) ? (float) $row['business_price'] : null;
+			$custom_email = (string) ( $row['custom_email'] ?? '' );
+
+			// Find by SKU
+			$product_id = wc_get_product_id_by_sku( $sku );
+			if ( $product_id ) {
+				// Update existing
+				wp_update_post( [ 'ID' => $product_id, 'post_title' => $title ] );
+				$product = wc_get_product( $product_id );
+				if ( $product ) {
+					$product->set_regular_price( (string) $price );
+					$product->save();
+					if ( $business_price !== null ) {
+						update_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, (string) $business_price );
+					} else {
+						delete_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE );
+					}
+					update_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, $custom_email );
+				}
+				$updated++;
+			} else {
+				// Create new simple product
+				$new_id = wp_insert_post( [
+					'post_type' => 'product',
+					'post_status' => 'publish',
+					'post_title' => $title,
+				] );
+				if ( $new_id && ! is_wp_error( $new_id ) ) {
+					update_post_meta( $new_id, '_sku', $sku );
+					$product = wc_get_product( $new_id );
+					if ( $product ) {
+						$product->set_regular_price( (string) $price );
+						$product->save();
+					}
+					if ( $business_price !== null ) {
+						update_post_meta( $new_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, (string) $business_price );
+					}
+					if ( $custom_email !== '' ) {
+						update_post_meta( $new_id, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, $custom_email );
+					}
+					$created++;
+				} else {
+					$skipped++;
+				}
+			}
+		}
+		add_settings_error( 'zw_ms', 'sync_done', sprintf( __( 'Catalog sync complete. Created: %d, Updated: %d, Skipped: %d', 'zeusweb-multishop' ), $created, $updated, $skipped ), 'updated' );
 	}
 
 	public static function render_settings_page(): void {
@@ -138,6 +235,13 @@ class Menu {
 				</table>
 				<?php submit_button(); ?>
 			</form>
+			<?php if ( get_option( 'zw_ms_mode', 'primary' ) === 'secondary' ) : ?>
+				<hr />
+				<form method="post">
+					<?php wp_nonce_field( 'zw_ms_sync_catalog', 'zw_ms_sync_nonce' ); ?>
+					<p><button class="button button-primary" name="zw_ms_action" value="sync_catalog"><?php esc_html_e( 'Sync Catalog from Primary', 'zeusweb-multishop' ); ?></button></p>
+				</form>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
