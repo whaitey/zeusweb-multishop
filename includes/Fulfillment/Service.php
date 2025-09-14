@@ -49,8 +49,6 @@ class Service {
 								// Reduce shortage if present
 								$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
 								if ( $shortage !== '' ) {
-									// If keys are now fully delivered for this item, clear shortage note
-									// We cannot know exact remaining pending per item without richer data; clear when this row is fully served.
 									wc_delete_order_item_meta( $item_id, '_zw_ms_shortage' );
 								}
 							}
@@ -64,8 +62,40 @@ class Service {
 						}
 					}
 				} else {
-					// TODO: webhook to Secondary to notify and let it email the customer
-					Logger::instance()->log( 'info', 'Backorder fulfilled for secondary site - webhook pending', [ 'site_id' => (string) $row->site_id, 'order_ref' => (string) $row->remote_order_id, 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
+					// Secondary-origin order: find mirrored Primary order by remote identifiers and notify customer from Primary
+					$orders = function_exists( 'wc_get_orders' ) ? wc_get_orders( [
+						'type'      => 'shop_order',
+						'limit'     => 1,
+						'meta_query'=> [
+							[ 'key' => '_zw_ms_remote_site_id', 'value' => (string) $row->site_id, 'compare' => '=' ],
+							[ 'key' => '_zw_ms_remote_order_id', 'value' => (string) $row->remote_order_id, 'compare' => '=' ],
+						],
+					] ) : [];
+					$order = is_array( $orders ) && ! empty( $orders ) ? $orders[0] : null;
+					if ( $order ) {
+						foreach ( $order->get_items() as $item_id => $item ) {
+							$pid = (int) $item->get_product_id();
+							if ( isset( $keys_by_product[ $pid ] ) ) {
+								$existing = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
+								$new_keys = implode( "\n", array_map( 'sanitize_text_field', $keys_by_product[ $pid ] ) );
+								$combined = trim( $existing ) !== '' ? ( $existing . "\n" . $new_keys ) : $new_keys;
+								wc_update_order_item_meta( $item_id, '_zw_ms_keys', $combined );
+								$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
+								if ( $shortage !== '' ) {
+									wc_delete_order_item_meta( $item_id, '_zw_ms_shortage' );
+								}
+							}
+						}
+						$order->save();
+						try {
+							CustomSender::send_order_keys_email( $order );
+							Logger::instance()->log( 'info', 'Backorder fulfillment email sent (mirrored order)', [ 'order_id' => $order->get_id(), 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id, 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
+						} catch ( \Throwable $e ) {
+							Logger::instance()->log( 'error', 'Backorder fulfillment email failed (mirrored order)', [ 'remote_order_id' => (string) $row->remote_order_id, 'error' => $e->getMessage() ] );
+						}
+					} else {
+						Logger::instance()->log( 'warning', 'Mirrored order not found for backorder fulfillment', [ 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id ] );
+					}
 				}
 				// Update backorder row
 				if ( $delivered >= (int) $row->qty_pending ) {
