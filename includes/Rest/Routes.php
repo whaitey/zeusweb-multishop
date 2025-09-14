@@ -113,8 +113,8 @@ class Routes {
 			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
 			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
 			$order->update_meta_data( '_zw_ms_origin_site_code', (string) get_option( 'zw_ms_site_code', '1' ) );
+			$order->update_meta_data( '_zw_ms_mirrored', 'yes' );
 
-			// Resolve SKUs to products and add to order
 			$alloc_items = [];
 			foreach ( $items_raw as $it ) {
 				$sku = sanitize_text_field( (string) ( $it['sku'] ?? '' ) );
@@ -150,8 +150,13 @@ class Routes {
 			}
 			$order->save();
 
-			if ( $email ) { CustomSender::send_order_keys_email( $order ); }
-			Logger::instance()->log( 'info', 'Order mirrored and email sent', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
+			if ( $email ) {
+				Logger::instance()->log( 'info', 'Sending mirrored order custom email', [ 'order_id' => $order->get_id(), 'email' => $email ] );
+				CustomSender::send_order_keys_email( $order );
+				$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+				$order->save();
+			}
+			Logger::instance()->log( 'info', 'Order mirrored and email attempted', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
 			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id() ], 200 );
 		} catch ( \Throwable $e ) {
 			Logger::instance()->log( 'error', 'Mirror order failed', [ 'error' => $e->getMessage(), 'remote_order_id' => $remote_order_id ] );
