@@ -53,6 +53,9 @@ class SecondaryHooks {
 			'remote_order_number' => (string) $order->get_order_number(),
 			'customer_segment' => SegmentManager::is_business() ? 'business' : 'consumer',
 			'customer_email' => (string) $order->get_billing_email(),
+			'billing' => $order->get_address( 'billing' ),
+			'shipping' => $order->get_address( 'shipping' ),
+			'customer_note' => method_exists( $order, 'get_customer_note' ) ? (string) $order->get_customer_note() : '',
 			'items' => self::build_items_with_skus( $order ),
 		];
 		if ( ! $primary || ! $primary_secret ) {

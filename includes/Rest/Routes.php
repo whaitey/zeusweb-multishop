@@ -112,10 +112,22 @@ class Routes {
 		$remote_order_number = sanitize_text_field( (string) ( $params['remote_order_number'] ?? '' ) );
 		$segment = sanitize_text_field( (string) ( $params['customer_segment'] ?? '' ) );
 		$email = sanitize_email( (string) ( $params['customer_email'] ?? '' ) );
+		$billing = is_array( $params['billing'] ?? null ) ? array_map( 'sanitize_text_field', $params['billing'] ) : [];
+		$shipping = is_array( $params['shipping'] ?? null ) ? array_map( 'sanitize_text_field', $params['shipping'] ) : [];
+		$customer_note = sanitize_text_field( (string) ( $params['customer_note'] ?? '' ) );
 		$items_raw = is_array( $params['items'] ?? null ) ? $params['items'] : [];
 		try {
 			$order = wc_create_order();
 			if ( $email ) { $order->set_billing_email( $email ); }
+			if ( ! empty( $billing ) && method_exists( $order, 'set_address' ) ) {
+				$order->set_address( $billing, 'billing' );
+			}
+			if ( ! empty( $shipping ) && method_exists( $order, 'set_address' ) ) {
+				$order->set_address( $shipping, 'shipping' );
+			}
+			if ( $customer_note !== '' && method_exists( $order, 'set_customer_note' ) ) {
+				$order->set_customer_note( $customer_note );
+			}
 			$order->update_meta_data( '_zw_ms_remote_site_id', $site_id );
 			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
 			if ( $remote_order_number !== '' ) { $order->update_meta_data( '_zw_ms_remote_order_number', $remote_order_number ); }
