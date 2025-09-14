@@ -39,8 +39,13 @@ class PrimaryHooks {
 		$site_id = (string) get_option( 'zw_ms_site_id', 'primary' );
 		$alloc   = KeysService::allocate_for_items( $site_id, (string) $order->get_id(), $items );
 		self::attach_keys_to_order( $order, $alloc );
+
+		// Send Woo standard email if enabled
 		self::maybe_send_customer_email( $order );
-		if ( CustomSender::should_send_custom_email_now( $order ) ) {
+
+		// Send custom email if custom-only is enabled OR any shortage exists
+		$custom_only = ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' );
+		if ( $custom_only || self::order_has_shortage( $order ) ) {
 			CustomSender::send_order_keys_email( $order );
 		}
 	}
@@ -63,6 +68,14 @@ class PrimaryHooks {
 			}
 		}
 		$order->save();
+	}
+
+	private static function order_has_shortage( \WC_Order $order ): bool {
+		foreach ( $order->get_items() as $item_id => $item ) {
+			$note = wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
+			if ( ! empty( $note ) ) { return true; }
+		}
+		return false;
 	}
 
 	private static function maybe_send_customer_email( \WC_Order $order ): void {
