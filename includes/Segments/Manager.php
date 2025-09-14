@@ -12,17 +12,16 @@ class Manager {
 	public const COOKIE    = 'zw_ms_segment';
 
 	public static function init(): void {
+		// Core functionality
 		add_filter( 'query_vars', [ __CLASS__, 'register_query_vars' ] );
 		add_action( 'init', [ __CLASS__, 'register_rewrites' ] );
 		add_filter( 'request', [ __CLASS__, 'rewrite_request_path' ] );
-		// Ensure cookie follows URL path early, before any output
-		add_action( 'init', [ __CLASS__, 'sync_cookie_from_path_early' ], 0 );
-		add_action( 'template_redirect', [ __CLASS__, 'handle_segment_entry' ], 1 );
-		add_action( 'init', [ __CLASS__, 'maybe_set_segment_from_param' ], 1 );
 		
-		// Ensure WooCommerce URLs maintain segment
-		add_filter( 'woocommerce_get_cart_url', [ __CLASS__, 'add_segment_to_url' ] );
-		add_filter( 'woocommerce_get_checkout_url', [ __CLASS__, 'add_segment_to_url' ] );
+		// Handle segment detection and persistence VERY early
+		add_action( 'plugins_loaded', [ __CLASS__, 'detect_and_persist_segment' ], 1 );
+		
+		// Handle cart clearing on segment switch
+		add_action( 'template_redirect', [ __CLASS__, 'maybe_clear_cart' ], 1 );
 		
 		// Add debug notice for admins
 		add_action( 'wp_footer', [ __CLASS__, 'show_debug_notice' ], 9999 );
@@ -35,12 +34,13 @@ class Manager {
 	}
 
 	public static function register_rewrites(): void {
-		// Consumer: /lakossagi/... (base rule only if a page with this slug doesn't exist)
+		// Consumer: /lakossagi/...
 		if ( ! get_page_by_path( 'lakossagi' ) ) {
 			add_rewrite_rule( '^lakossagi/?$', 'index.php?' . self::QUERY_VAR . '=consumer', 'top' );
 		}
 		add_rewrite_rule( '^lakossagi/(.*)$', 'index.php?' . self::QUERY_VAR . '=consumer&' . self::PATH_VAR . '=$matches[1]', 'top' );
-		// Business: /uzleti/... (base rule only if a page with this slug doesn't exist)
+		
+		// Business: /uzleti/...
 		if ( ! get_page_by_path( 'uzleti' ) ) {
 			add_rewrite_rule( '^uzleti/?$', 'index.php?' . self::QUERY_VAR . '=business', 'top' );
 		}
@@ -51,7 +51,8 @@ class Manager {
 		if ( isset( $request[ self::PATH_VAR ] ) && is_string( $request[ self::PATH_VAR ] ) ) {
 			$path = trim( (string) $request[ self::PATH_VAR ], '/' );
 			unset( $request[ self::PATH_VAR ] );
-			// Try to resolve a single post/page/product by path. If found, set 'p' to avoid 404s.
+			
+			// Try to resolve a single post/page/product by path
 			$maybe_id = self::resolve_path_to_post_id( $path );
 			if ( $maybe_id ) {
 				$post_type = get_post_type( $maybe_id ) ?: 'post';
@@ -59,7 +60,7 @@ class Manager {
 				$request['post_type'] = $post_type;
 				unset( $request['pagename'] );
 			} else {
-				// WooCommerce product fallback by slug (last segment) when using category-based permalinks
+				// WooCommerce product fallback by slug
 				$segments = array_values( array_filter( explode( '/', $path ) ) );
 				$last = $segments ? end( $segments ) : '';
 				if ( $last ) {
@@ -67,20 +68,10 @@ class Manager {
 					$request['post_type'] = 'product';
 					unset( $request['pagename'] );
 				} else {
-					// Fallback minimal: set pagename so regular pages still work
-					$request = self::parse_path_into_request( $path, $request );
+					$request['pagename'] = $path;
 				}
 			}
 		}
-
-		// If no PATH_VAR was set (i.e., base /lakossagi or /uzleti), do not alter request; let WP load the page content.
-		return $request;
-	}
-
-	private static function parse_path_into_request( string $path, array $request ): array {
-		// Minimal approach: set 'pagename' for pretty permalinks, WordPress will handle nested pages.
-		// For archives/singles/taxonomies, WordPress will still resolve via its own rules using the path.
-		$request['pagename'] = $path;
 		return $request;
 	}
 
@@ -90,180 +81,101 @@ class Manager {
 		return (int) $id;
 	}
 
-	public static function handle_segment_entry(): void {
-		$current = self::get_current_segment();
-		if ( ! $current ) {
-			return;
-		}
+	/**
+	 * Detect segment and persist it VERY early in the request
+	 */
+	public static function detect_and_persist_segment(): void {
+		$new_segment = null;
 		
-		// Get previous segment from cookie
-		$previous = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
-		
-		// If a switch was detected early, or previous differs, empty the cart once
-		$should_empty = false;
-		if ( function_exists( 'WC' ) && WC()->session ) {
-			$flag = (int) WC()->session->get( '_zw_ms_segment_switched', 0 );
-			if ( $flag ) {
-				$should_empty = true;
-				WC()->session->set( '_zw_ms_segment_switched', 0 );
+		// 1. Check URL parameter (highest priority)
+		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
+			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
+				$new_segment = $seg;
 			}
 		}
-		if ( ! $should_empty && $previous && $previous !== $current ) {
-			$should_empty = true;
+		
+		// 2. Check if we're on a segment-specific path
+		if ( ! $new_segment ) {
+			$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+			$path = strtok( $uri, '?' );
+			if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
+				$new_segment = 'consumer';
+			} elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
+				$new_segment = 'business';
+			}
 		}
-		if ( $should_empty ) {
+		
+		// If we detected a segment, persist it
+		if ( $new_segment ) {
+			// Get current cookie value
+			$current_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+			
+			// Mark if segment changed for cart clearing
+			if ( $current_cookie && $current_cookie !== $new_segment ) {
+				$_SESSION['_zw_ms_segment_switched'] = true;
+			}
+			
+			// Set the cookie
+			self::set_segment_cookie( $new_segment );
+			$_COOKIE[ self::COOKIE ] = $new_segment;
+		}
+		
+		// If URL param was used, redirect to clean URL
+		if ( isset( $_GET['zw_ms_set_segment'] ) && $new_segment ) {
+			$target = remove_query_arg( [ 'zw_ms_set_segment' ] );
+			if ( ! headers_sent() ) {
+				wp_safe_redirect( $target );
+				exit;
+			}
+		}
+	}
+
+	/**
+	 * Clear cart if segment was switched
+	 */
+	public static function maybe_clear_cart(): void {
+		if ( isset( $_SESSION['_zw_ms_segment_switched'] ) && $_SESSION['_zw_ms_segment_switched'] ) {
 			if ( function_exists( 'WC' ) && WC()->cart ) {
 				WC()->cart->empty_cart();
 			}
-		}
-		
-		// Always update cookie and session to ensure persistence
-		self::set_segment_cookie( $current );
-		// Update superglobal so downstream hooks see the new value in this request
-		$_COOKIE[ self::COOKIE ] = $current;
-		
-		// Also store in WooCommerce session if available
-		if ( function_exists( 'WC' ) && WC()->session ) {
-			WC()->session->set( self::COOKIE, $current );
+			unset( $_SESSION['_zw_ms_segment_switched'] );
 		}
 	}
 
 	/**
-	 * Early in the request lifecycle, align the segment cookie with the URL path
-	 * so navigation under /lakossagi or /uzleti persists the selection.
-	 */
-	public static function sync_cookie_from_path_early(): void {
-		$from_path = self::detect_segment_from_path();
-		if ( ! $from_path ) { return; }
-		$cookie_val = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
-		if ( $cookie_val === $from_path ) { return; }
-		// Mark switch so we empty cart later in template_redirect
-		if ( function_exists( 'WC' ) && WC()->session ) {
-			WC()->session->set( '_zw_ms_segment_switched', 1 );
-		}
-		self::set_segment_cookie( $from_path );
-		$_COOKIE[ self::COOKIE ] = $from_path;
-	}
-
-	public static function maybe_set_segment_from_param(): void {
-		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
-			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
-			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
-				// Get previous segment for cart clearing
-				$previous = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
-				
-				// Set cookie immediately
-				self::set_segment_cookie( $seg );
-				$_COOKIE[ self::COOKIE ] = $seg; // Update superglobal for immediate use
-				
-				// Store in WooCommerce session
-				if ( function_exists( 'WC' ) && WC()->session ) {
-					WC()->session->set( self::COOKIE, $seg );
-				}
-				
-				// Empty cart if segment changed
-				if ( $previous && $previous !== $seg ) {
-					if ( function_exists( 'WC' ) && WC()->cart ) {
-						WC()->cart->empty_cart();
-					}
-				}
-				
-				// Redirect to clean URL
-				nocache_headers();
-				$target = remove_query_arg( [ 'zw_ms_set_segment' ] );
-				if ( ! headers_sent() ) {
-					wp_safe_redirect( $target );
-					exit;
-				}
-			}
-		}
-	}
-
-	/**
-	 * Robustly set the segment cookie for both COOKIEPATH and SITECOOKIEPATH with modern attributes.
+	 * Set the segment cookie robustly
 	 */
 	private static function set_segment_cookie( string $value ): void {
+		if ( headers_sent() ) {
+			return;
+		}
+		
 		$expire = time() + 30 * DAY_IN_SECONDS;
 		
-		// Always set cookie for root path to ensure it works across the entire site
-		$paths = [ '/' ];
-		
-		// Also set for COOKIEPATH if it's different from root
-		if ( defined( 'COOKIEPATH' ) && COOKIEPATH && COOKIEPATH !== '/' ) {
-			$paths[] = COOKIEPATH;
-		}
-		
-		// And SITECOOKIEPATH if it's different
-		if ( defined( 'SITECOOKIEPATH' ) && SITECOOKIEPATH && ! in_array( SITECOOKIEPATH, $paths ) ) {
-			$paths[] = SITECOOKIEPATH;
-		}
-
-		foreach ( $paths as $path ) {
-			if ( PHP_VERSION_ID >= 70300 ) {
-				@setcookie( self::COOKIE, $value, [
-					'expires'  => $expire,
-					'path'     => $path,
-					'domain'   => '', // Let browser determine domain
-					'secure'   => is_ssl(),
-					'httponly' => false, // Allow JS access for debugging
-					'samesite' => 'Lax',
-				] );
-			} else {
-				@setcookie( self::COOKIE, $value, $expire, $path, '', is_ssl(), false );
-			}
+		// Set cookie for root path to ensure it works everywhere
+		if ( PHP_VERSION_ID >= 70300 ) {
+			setcookie( self::COOKIE, $value, [
+				'expires'  => $expire,
+				'path'     => '/',
+				'domain'   => '', // Let browser determine
+				'secure'   => is_ssl(),
+				'httponly' => false, // Allow JS access for debugging
+				'samesite' => 'Lax',
+			] );
+		} else {
+			setcookie( self::COOKIE, $value, $expire, '/', '', is_ssl(), false );
 		}
 	}
 
+	/**
+	 * Get the current segment
+	 */
 	public static function get_current_segment(): string {
-		// 1) Explicit URL param always wins
-		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
-			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
-			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
-				return $seg;
-			}
-		}
-		
-		// 2) Check if we're on a segment-specific path
-		$from_path = self::detect_segment_from_path();
-		
-		// 3) Query var from rewrites (when on /lakossagi or /uzleti pages)
-		$segment = get_query_var( self::QUERY_VAR );
-		if ( $segment === 'consumer' || $segment === 'business' ) {
-			return $segment;
-		}
-		
-		// 4) If we detected a segment from path, use it
-		if ( $from_path ) {
-			return $from_path;
-		}
-		
-		// 5) Otherwise, use persisted value (cookie/session)
-		// This ensures that once set, the segment persists across navigation
+		// Simply return what's in the cookie
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
-		if ( $from_cookie === 'consumer' || $from_cookie === 'business' ) {
+		if ( in_array( $from_cookie, [ 'consumer', 'business' ], true ) ) {
 			return $from_cookie;
-		}
-		
-		// 6) Check WooCommerce session as fallback
-		if ( function_exists( 'WC' ) && WC()->session ) {
-			$from_session = (string) WC()->session->get( self::COOKIE, '' );
-			if ( $from_session === 'consumer' || $from_session === 'business' ) {
-				return $from_session;
-			}
-		}
-		
-		// 7) Default to empty (no segment selected)
-		return '';
-	}
-
-	private static function detect_segment_from_path(): string {
-		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
-		$path = strtok( $uri, '?' );
-		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
-			return 'consumer';
-		}
-		if ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
-			return 'business';
 		}
 		return '';
 	}
@@ -285,7 +197,15 @@ class Manager {
 		$cookie = isset( $_COOKIE[ self::COOKIE ] ) ? $_COOKIE[ self::COOKIE ] : 'not set';
 		$query_var = get_query_var( self::QUERY_VAR ) ?: 'not set';
 		$param = isset( $_GET['zw_ms_set_segment'] ) ? sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) ) : 'not set';
-		$path_detect = self::detect_segment_from_path() ?: 'none';
+		
+		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = strtok( $uri, '?' );
+		$path_detect = 'none';
+		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
+			$path_detect = 'consumer';
+		} elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
+			$path_detect = 'business';
+		}
 		
 		echo '<div style="position: fixed; bottom: 10px; right: 10px; background: #333; color: #fff; padding: 10px; z-index: 99999; font-size: 12px; border-radius: 5px;">';
 		echo '<strong>Multishop Debug:</strong><br>';
@@ -294,19 +214,7 @@ class Manager {
 		echo 'Query Var: ' . esc_html( $query_var ) . '<br>';
 		echo 'GET Param: ' . esc_html( $param ) . '<br>';
 		echo 'Path Detect: ' . esc_html( $path_detect ) . '<br>';
+		echo 'Headers Sent: ' . ( headers_sent() ? 'yes' : 'no' ) . '<br>';
 		echo '</div>';
 	}
-	
-	/**
-	 * Add segment parameter to WooCommerce URLs to maintain state
-	 */
-	public static function add_segment_to_url( $url ) {
-		$segment = self::get_current_segment();
-		if ( $segment && ! strpos( $url, 'zw_ms_set_segment' ) ) {
-			$url = add_query_arg( 'zw_ms_set_segment', $segment, $url );
-		}
-		return $url;
-	}
 }
-
-
