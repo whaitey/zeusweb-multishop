@@ -28,6 +28,7 @@ class Menu {
 		);
 
 		add_submenu_page( 'zw-ms', __( 'Settings', 'zeusweb-multishop' ), __( 'Settings', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms', [ __CLASS__, 'render_settings_page' ] );
+		add_submenu_page( 'zw-ms', __( 'Payments', 'zeusweb-multishop' ), __( 'Payments', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-payments', [ \ZeusWeb\Multishop\Admin\Payments::class, 'render_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Sites', 'zeusweb-multishop' ), __( 'Sites', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-sites', [ __CLASS__, 'render_sites_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Logs', 'zeusweb-multishop' ), __( 'Logs', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-logs', [ __CLASS__, 'render_logs_page' ] );
 	}

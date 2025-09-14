@@ -46,21 +46,8 @@ class SecondaryHooks {
 
 	private static function mirror_order_to_primary( \WC_Order $order ): void {
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
-		if ( ! $primary ) {
-			Logger::instance()->log( 'error', 'Primary URL not set for Secondary mirror', [ 'order_id' => $order->get_id() ] );
-			return;
-		}
 		$primary_secret = (string) get_option( 'zw_ms_primary_secret', '' );
-		if ( ! $primary_secret ) {
-			Logger::instance()->log( 'error', 'Primary shared secret not set on Secondary (mirror)', [ 'order_id' => $order->get_id() ] );
-			return;
-		}
-		$path   = '/zw-ms/v1/mirror-order';
-		$url    = rtrim( $primary, '/' ) . '/wp-json' . $path;
-		$method = 'POST';
-		$timestamp = (string) time();
-		$nonce     = wp_generate_uuid4();
-		$body_data = [
+		$payload = [
 			'site_id' => get_option( 'zw_ms_site_id' ),
 			'order_id' => (string) $order->get_id(),
 			'remote_order_number' => (string) $order->get_order_number(),
@@ -68,7 +55,16 @@ class SecondaryHooks {
 			'customer_email' => (string) $order->get_billing_email(),
 			'items' => self::build_items_with_skus( $order ),
 		];
-		$body = wp_json_encode( $body_data );
+		if ( ! $primary || ! $primary_secret ) {
+			MirrorRetry::enqueue( $payload );
+			return;
+		}
+		$path   = '/zw-ms/v1/mirror-order';
+		$url    = rtrim( $primary, '/' ) . '/wp-json' . $path;
+		$method = 'POST';
+		$timestamp = (string) time();
+		$nonce     = wp_generate_uuid4();
+		$body = wp_json_encode( $payload );
 		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $primary_secret );
 		$args = [
 			'headers' => [
@@ -83,12 +79,14 @@ class SecondaryHooks {
 		];
 		$response = wp_remote_post( $url, $args );
 		if ( is_wp_error( $response ) ) {
-			throw new \RuntimeException( $response->get_error_message() );
+			MirrorRetry::enqueue( $payload );
+			return;
 		}
 		$code = (int) wp_remote_retrieve_response_code( $response );
 		$resp_body = wp_remote_retrieve_body( $response );
 		if ( $code !== 200 ) {
 			Logger::instance()->log( 'error', 'Primary mirror HTTP error', [ 'order_id' => $order->get_id(), 'status' => $code, 'body' => $resp_body ] );
+			MirrorRetry::enqueue( $payload );
 			return;
 		}
 		$data = json_decode( $resp_body, true );

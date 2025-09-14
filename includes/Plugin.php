@@ -20,6 +20,8 @@ use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
 use ZeusWeb\Multishop\Orders\OrderNumbers;
+use ZeusWeb\Multishop\Payments\Enforcer as PaymentsEnforcer;
+use ZeusWeb\Multishop\Sync\Service as SyncService;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -88,6 +90,13 @@ class Plugin {
 
 		// Show shortage notice on thank-you and view-order if relevant
 		CheckoutNotices::init();
+
+		// Payments enforcement on Secondary
+		PaymentsEnforcer::init();
+
+		// Scheduled catalog sync for Secondary
+		SyncService::init();
+		SyncService::schedule_if_needed();
 	}
 
 	public function activate() {

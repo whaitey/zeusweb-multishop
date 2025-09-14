@@ -43,6 +43,12 @@ class Routes {
 			'permission_callback' => [ __CLASS__, 'verify_hmac' ],
 			'callback'            => [ __CLASS__, 'mirror_order' ],
 		] );
+
+		register_rest_route( 'zw-ms/v1', '/payments-config', [
+			'methods'             => WP_REST_Server::READABLE,
+			'permission_callback' => [ __CLASS__, 'verify_hmac' ],
+			'callback'            => [ __CLASS__, 'payments_config' ],
+		] );
 	}
 
 	public static function verify_hmac( WP_REST_Request $request ): bool {
@@ -164,6 +170,21 @@ class Routes {
 			Logger::instance()->log( 'error', 'Mirror order failed', [ 'error' => $e->getMessage(), 'remote_order_id' => $remote_order_id ] );
 			return new WP_REST_Response( [ 'error' => 'mirror_failed' ], 500 );
 		}
+	}
+
+	public static function payments_config( WP_REST_Request $request ) {
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'primary' ) {
+			return new WP_REST_Response( [ 'error' => 'not_primary' ], 400 );
+		}
+		$site_id = sanitize_text_field( (string) $request->get_param( 'site_id' ) );
+		$segment = sanitize_text_field( (string) $request->get_param( 'segment' ) );
+		$matrix = get_option( 'zw_ms_gateways_matrix', [] );
+		if ( ! is_array( $matrix ) ) { $matrix = []; }
+		$allowed = [];
+		if ( $site_id !== '' && isset( $matrix[ $site_id ] ) && isset( $matrix[ $site_id ][ $segment ] ) && is_array( $matrix[ $site_id ][ $segment ] ) ) {
+			$allowed = array_values( array_map( 'strval', $matrix[ $site_id ][ $segment ] ) );
+		}
+		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
 	}
 }
 

@@ -29,6 +29,11 @@ class CustomSender {
 				$mailer = WC()->mailer();
 				$wrapped = $mailer->wrap_message( __( 'Your keys', 'zeusweb-multishop' ), $body_inner );
 				$sent = (bool) $mailer->send( $to, $subject, $wrapped );
+				if ( ! $sent ) {
+					// Fallback to wp_mail if Woo mailer failed
+					$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+					$sent = (bool) wp_mail( $to, $subject, $body_inner, $headers );
+				}
 			} else {
 				$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
 				$sent = (bool) wp_mail( $to, $subject, $body_inner, $headers );
