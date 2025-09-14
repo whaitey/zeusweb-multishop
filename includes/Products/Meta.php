@@ -51,12 +51,31 @@ class Meta {
 	}
 
 	public static function render_custom_email_metabox( $post ): void {
-		$value = get_post_meta( $post->ID, self::META_CUSTOM_EMAIL, true );
-		echo '<textarea style="width:100%;min-height:180px" name="' . esc_attr( self::META_CUSTOM_EMAIL ) . '" id="' . esc_attr( self::META_CUSTOM_EMAIL ) . '">';
-		echo esc_textarea( (string) $value );
-		echo '</textarea>';
-		echo '<p class="description">' . esc_html__( 'HTML allowed. This content will be sent with the order email for this product.', 'zeusweb-multishop' ) . '</p>';
+		$value = (string) get_post_meta( $post->ID, self::META_CUSTOM_EMAIL, true );
+		$editor_id = 'zw_ms_custom_email_editor_' . (int) $post->ID;
+		$settings = [
+			'textarea_name' => self::META_CUSTOM_EMAIL,
+			'editor_height' => 240,
+			'media_buttons' => false,
+			'teeny' => false,
+			'tinymce' => true,
+		];
+		if ( function_exists( 'wp_editor' ) ) {
+			wp_editor( $value, $editor_id, $settings );
+		} else {
+			echo '<textarea style="width:100%;min-height:240px" name="' . esc_attr( self::META_CUSTOM_EMAIL ) . '">' . esc_textarea( $value ) . '</textarea>';
+		}
+		echo '<p class="description">' . esc_html__( 'This content is sent to the customer for this product. HTML allowed.', 'zeusweb-multishop' ) . '</p>';
 		echo '<p class="description">' . esc_html__( 'Placeholders: {product_name}, {quantity}, {keys}, {keys_html}, {keys_raw}, {shortage_note}', 'zeusweb-multishop' ) . '</p>';
+		// Quick placeholder buttons
+		$tokens = [ '{product_name}', '{quantity}', '{keys}', '{keys_html}', '{keys_raw}', '{shortage_note}' ];
+		echo '<p>';
+		foreach ( $tokens as $t ) {
+			echo '<button type="button" class="button zw-ms-insert-token" data-token="' . esc_attr( $t ) . '" data-target="' . esc_attr( $editor_id ) . '">' . esc_html( $t ) . '</button> ';
+		}
+		echo '</p>';
+		echo '<script>(function(){function ins(t,id){try{if(window.tinyMCE&&tinyMCE.get(id)){tinyMCE.get(id).execCommand("mceInsertContent",false,t);}else{var ta=document.getElementById(id);if(ta){var s=ta.selectionStart,e=ta.selectionEnd,v=ta.value;ta.value=v.substring(0,s)+t+v.substring(e);}}}catch(e){}}
+		var btns=document.querySelectorAll(".zw-ms-insert-token");btns.forEach(function(b){b.addEventListener("click",function(){ins(this.getAttribute("data-token"),this.getAttribute("data-target"));});});})();</script>';
 		wp_nonce_field( 'zw_ms_save_email', 'zw_ms_email_nonce' );
 	}
 

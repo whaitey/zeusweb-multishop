@@ -15,9 +15,15 @@ class CustomSender {
 			'{site_name}' => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
 			'{order_number}' => (string) $order->get_order_number(),
 		] );
+		$body_inner = self::build_email_html( $order );
+		if ( function_exists( 'WC' ) && WC()->mailer() ) {
+			$mailer = WC()->mailer();
+			$wrapped = $mailer->wrap_message( __( 'Your keys', 'zeusweb-multishop' ), $body_inner );
+			$mailer->send( $to, $subject, $wrapped );
+			return;
+		}
 		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
-		$body = self::build_email_html( $order );
-		wp_mail( $to, $subject, $body, $headers );
+		wp_mail( $to, $subject, $body_inner, $headers );
 	}
 
 	private static function build_email_html( \WC_Order $order ): string {
