@@ -126,12 +126,12 @@ class Plugin {
 		$random   = wp_generate_uuid4();
 		$hostname = wp_parse_url( home_url(), PHP_URL_HOST );
 		$hash     = hash( 'sha256', $time . '|' . $random . '|' . $hostname );
-		add_option( $this->site_id_option_key, substr( $hash, 0, 32 ) );
+		update_option( $this->site_id_option_key, substr( $hash, 0, 32 ), false );
 	}
 
 	private function generate_secret(): void {
 		$bytes = wp_generate_password( 64, true, true );
-		add_option( $this->secret_option_key, $bytes );
+		update_option( $this->secret_option_key, $bytes, false );
 	}
 }
 
