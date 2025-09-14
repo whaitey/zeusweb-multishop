@@ -66,8 +66,9 @@ class SecondaryHooks {
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
-			// If custom-only mode, send customer email from Secondary too
-			if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) {
+			// Send custom email if custom-only is enabled OR any shortage exists on this order
+			$custom_only = ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' );
+			if ( $custom_only || self::order_has_shortage( $order ) ) {
 				CustomSender::send_order_keys_email( $order );
 			}
 		}
@@ -112,6 +113,14 @@ class SecondaryHooks {
 			}
 		}
 		$order->save();
+	}
+
+	private static function order_has_shortage( \WC_Order $order ): bool {
+		foreach ( $order->get_items() as $item_id => $item ) {
+			$note = wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
+			if ( ! empty( $note ) ) { return true; }
+		}
+		return false;
 	}
 }
 
