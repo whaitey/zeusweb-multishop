@@ -13,8 +13,9 @@ class Menu {
 		add_action( 'admin_menu', [ __CLASS__, 'register_menu' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
 		add_action( 'admin_bar_menu', [ __CLASS__, 'add_adminbar_segment_switch' ], 100 );
-		// Handle sync action early so it runs on the same POST request
+		// Handle actions early so they run on the same request
 		add_action( 'admin_init', [ __CLASS__, 'maybe_handle_sync' ] );
+		add_action( 'admin_init', [ __CLASS__, 'maybe_handle_regen_secret' ] );
 	}
 
 	public static function register_menu(): void {
@@ -85,6 +86,17 @@ class Menu {
 		if ( ! isset( $_POST['zw_ms_sync_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_sync_nonce'] ) ), 'zw_ms_sync_catalog' ) ) { return; }
 		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return; }
 		self::handle_sync_catalog();
+	}
+
+	public static function maybe_handle_regen_secret(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
+		if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) { return; }
+		if ( ! isset( $_POST['zw_ms_action'] ) || $_POST['zw_ms_action'] !== 'regen_secret' ) { return; }
+		if ( ! isset( $_POST['zw_ms_regen_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_regen_nonce'] ) ), 'zw_ms_regen_secret' ) ) { return; }
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'primary' ) { return; }
+		$secret = wp_generate_password( 64, false, false );
+		update_option( 'zw_ms_secret', $secret, false );
+		add_settings_error( 'zw_ms', 'regen_ok', __( 'Primary secret regenerated. Update Secondary with the new secret.', 'zeusweb-multishop' ), 'updated' );
 	}
 
 	private static function media_sideload_image_to_attachment( string $image_url, int $post_id ): ?int {
@@ -219,7 +231,15 @@ class Menu {
 						<?php if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) : ?>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'This Site Secret', 'zeusweb-multishop' ); ?></th>
-							<td><code><?php echo esc_html( $plugin->get_secret() ); ?></code><p class="description"><?php esc_html_e( 'Copy this to Secondary sites as the "Primary shared secret" to enable sync.', 'zeusweb-multishop' ); ?></p></td>
+							<td>
+								<code><?php echo esc_html( $plugin->get_secret() ); ?></code>
+								<p class="description"><?php esc_html_e( 'Copy this to Secondary sites as the "Primary shared secret" to enable sync.', 'zeusweb-multishop' ); ?></p>
+								<form method="post" style="margin-top:8px;">
+									<?php wp_nonce_field( 'zw_ms_regen_secret', 'zw_ms_regen_nonce' ); ?>
+									<input type="hidden" name="zw_ms_action" value="regen_secret" />
+									<button type="submit" class="button button-secondary" onclick="return confirm('Regenerate secret? You must update Secondary settings afterwards.');"><?php esc_html_e( 'Regenerate secret', 'zeusweb-multishop' ); ?></button>
+								</form>
+							</td>
 						</tr>
 						<?php endif; ?>
 						<?php if ( get_option( 'zw_ms_mode', 'primary' ) === 'secondary' ) : ?>
@@ -238,18 +258,18 @@ class Menu {
 								<textarea name="zw_ms_shortage_message" class="large-text" rows="4"><?php echo esc_textarea( get_option( 'zw_ms_shortage_message', __( 'Some keys are delayed and will arrive within 24 hours.', 'zeusweb-multishop' ) ) ); ?></textarea>
 							</td>
 						</tr>
-                        <tr>
-                            <th scope="row"><?php esc_html_e( 'Custom email only (disable Woo customer emails)', 'zeusweb-multishop' ); ?></th>
-                            <td>
-                                <label><input type="checkbox" name="zw_ms_enable_custom_email_only" value="yes" <?php checked( get_option( 'zw_ms_enable_custom_email_only', 'no' ), 'yes' ); ?> /> <?php esc_html_e( 'Send only the custom keys email to customers', 'zeusweb-multishop' ); ?></label>
-                                <p>
-                                    <label><?php esc_html_e( 'Custom email subject', 'zeusweb-multishop' ); ?>
-                                        <input type="text" class="regular-text" name="zw_ms_custom_email_subject" value="<?php echo esc_attr( get_option( 'zw_ms_custom_email_subject', 'Your {site_name} order keys (#{order_number})' ) ); ?>" />
-                                    </label>
-                                </p>
-                                <p class="description"><?php esc_html_e( 'Body is built from per-product custom emails with placeholders.', 'zeusweb-multishop' ); ?></p>
-                            </td>
-                        </tr>
+        			<tr>
+            			<th scope="row"><?php esc_html_e( 'Custom email only (disable Woo customer emails)', 'zeusweb-multishop' ); ?></th>
+            			<td>
+            				<label><input type="checkbox" name="zw_ms_enable_custom_email_only" value="yes" <?php checked( get_option( 'zw_ms_enable_custom_email_only', 'no' ), 'yes' ); ?> /> <?php esc_html_e( 'Send only the custom keys email to customers', 'zeusweb-multishop' ); ?></label>
+            				<p>
+            					<label><?php esc_html_e( 'Custom email subject', 'zeusweb-multishop' ); ?>
+            						<input type="text" class="regular-text" name="zw_ms_custom_email_subject" value="<?php echo esc_attr( get_option( 'zw_ms_custom_email_subject', 'Your {site_name} order keys (#{order_number})' ) ); ?>" />
+            					</label>
+            				</p>
+            				<p class="description"><?php esc_html_e( 'Body is built from per-product custom emails with placeholders.', 'zeusweb-multishop' ); ?></p>
+            			</td>
+        			</tr>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'Elementor Templates (IDs)', 'zeusweb-multishop' ); ?></th>
 							<td>
