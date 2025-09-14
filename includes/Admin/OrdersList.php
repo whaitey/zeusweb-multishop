@@ -32,7 +32,7 @@ class OrdersList {
 		];
 
 		if ( $status !== '' ) {
-			$args['status'] = [ $status ];
+			$args['status'] = [ strpos( $status, 'wc-' ) === 0 ? $status : 'wc-' . $status ];
 		}
 
 		$meta_query = [];
@@ -50,10 +50,20 @@ class OrdersList {
 			$args['meta_query'] = $meta_query;
 		}
 
-		$result = function_exists( 'wc_get_orders' ) ? wc_get_orders( $args ) : [ 'orders' => [], 'total' => 0, 'pages' => 0 ];
-		$orders = is_array( $result ) && isset( $result['orders'] ) ? $result['orders'] : [];
-		$total  = is_array( $result ) && isset( $result['total'] ) ? (int) $result['total'] : 0;
-		$pages  = is_array( $result ) && isset( $result['pages'] ) ? (int) $result['pages'] : 0;
+		$orders = [];
+		$total = 0;
+		$pages = 0;
+		$result = function_exists( 'wc_get_orders' ) ? wc_get_orders( $args ) : null;
+		if ( is_array( $result ) ) {
+			if ( isset( $result['orders'] ) ) {
+				$orders = $result['orders'];
+				$total  = (int) ( $result['total'] ?? 0 );
+				$pages  = (int) ( $result['pages'] ?? 0 );
+			} else {
+				// Non-paginated style (fallback)
+				$orders = $result;
+			}
+		}
 
 		?>
 		<div class="wrap">

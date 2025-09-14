@@ -134,6 +134,7 @@ class Routes {
 			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
 			$order->update_meta_data( '_zw_ms_origin_site_code', (string) get_option( 'zw_ms_site_code', '1' ) );
 			$order->update_meta_data( '_zw_ms_mirrored', 'yes' );
+			$order->update_meta_data( '_zw_ms_force_custom_email', 'yes' );
 
 			$alloc_items = [];
 			foreach ( $items_raw as $it ) {
