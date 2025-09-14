@@ -102,6 +102,8 @@ class Manager {
 		
 		// Always update cookie and session to ensure persistence
 		self::set_segment_cookie( $current );
+		// Update superglobal so downstream hooks see the new value in this request
+		$_COOKIE[ self::COOKIE ] = $current;
 		
 		// Also store in WooCommerce session if available
 		if ( function_exists( 'WC' ) && WC()->session ) {
