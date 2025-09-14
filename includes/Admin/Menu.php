@@ -58,6 +58,7 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_primary_url' );
 		register_setting( 'zw_ms', 'zw_ms_site_id' );
 		register_setting( 'zw_ms', 'zw_ms_secret' );
+		register_setting( 'zw_ms', 'zw_ms_primary_secret' );
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
         register_setting( 'zw_ms', 'zw_ms_enable_custom_email_only' );
         register_setting( 'zw_ms', 'zw_ms_custom_email_subject' );
@@ -82,9 +83,9 @@ class Menu {
 
 	private static function handle_sync_catalog(): void {
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
-		$secret  = (string) get_option( 'zw_ms_secret', '' );
-		if ( ! $primary || ! $secret ) {
-			add_settings_error( 'zw_ms', 'sync_missing', __( 'Primary URL or secret missing.', 'zeusweb-multishop' ), 'error' );
+		$primary_secret  = (string) get_option( 'zw_ms_primary_secret', '' );
+		if ( ! $primary || ! $primary_secret ) {
+			add_settings_error( 'zw_ms', 'sync_missing', __( 'Primary URL or Primary shared secret missing.', 'zeusweb-multishop' ), 'error' );
 			return;
 		}
 		$path = '/wp-json/zw-ms/v1/catalog';
@@ -92,7 +93,7 @@ class Menu {
 		$timestamp = (string) time();
 		$nonce = wp_generate_uuid4();
 		$body = '';
-		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $secret );
+		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $primary_secret );
 		$url = rtrim( $primary, '/' ) . $path;
 		$args = [
 			'headers' => [
@@ -108,7 +109,13 @@ class Menu {
 			add_settings_error( 'zw_ms', 'sync_error', $response->get_error_message(), 'error' );
 			return;
 		}
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$code = wp_remote_retrieve_response_code( $response );
+		$body_json = wp_remote_retrieve_body( $response );
+		$data = json_decode( $body_json, true );
+		if ( $code !== 200 ) {
+			add_settings_error( 'zw_ms', 'sync_http', sprintf( __( 'Sync failed (HTTP %d).', 'zeusweb-multishop' ), (int) $code ), 'error' );
+			return;
+		}
 		if ( ! is_array( $data ) || ! is_array( $data['items'] ?? null ) ) {
 			add_settings_error( 'zw_ms', 'sync_invalid', __( 'Invalid catalog response.', 'zeusweb-multishop' ), 'error' );
 			return;
@@ -173,6 +180,7 @@ class Menu {
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html__( 'ZeusWeb Multishop Settings', 'zeusweb-multishop' ); ?></h1>
+			<?php settings_errors( 'zw_ms' ); settings_errors(); ?>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'zw_ms' ); ?>
 				<table class="form-table" role="presentation">
@@ -191,6 +199,18 @@ class Menu {
 							<th scope="row"><?php esc_html_e( 'This Site ID', 'zeusweb-multishop' ); ?></th>
 							<td><code><?php echo esc_html( $plugin->get_site_id() ); ?></code></td>
 						</tr>
+						<?php if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) : ?>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'This Site Secret', 'zeusweb-multishop' ); ?></th>
+							<td><code><?php echo esc_html( $plugin->get_secret() ); ?></code><p class="description"><?php esc_html_e( 'Copy this to Secondary sites as the "Primary shared secret" to enable sync.', 'zeusweb-multishop' ); ?></p></td>
+						</tr>
+						<?php endif; ?>
+						<?php if ( get_option( 'zw_ms_mode', 'primary' ) === 'secondary' ) : ?>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Primary shared secret', 'zeusweb-multishop' ); ?></th>
+							<td><input type="text" class="regular-text" name="zw_ms_primary_secret" value="<?php echo esc_attr( get_option( 'zw_ms_primary_secret', '' ) ); ?>" /></td>
+						</tr>
+						<?php endif; ?>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'Primary URL (for Secondary mode)', 'zeusweb-multishop' ); ?></th>
 							<td><input type="url" class="regular-text" name="zw_ms_primary_url" value="<?php echo esc_attr( get_option( 'zw_ms_primary_url', '' ) ); ?>" placeholder="https://primary.example.com" /></td>
