@@ -40,6 +40,7 @@ class OrdersColumns {
 	}
 
 	public static function render_column_post( string $column, int $post_id ): void {
+		if ( self::already_rendered( $column, (string) $post_id ) ) { return; }
 		if ( $column === 'zw_ms_origin' ) {
 			$order = function_exists( 'wc_get_order' ) ? wc_get_order( $post_id ) : null;
 			$site_id = $order ? (string) $order->get_meta( '_zw_ms_remote_site_id' ) : '';
@@ -57,6 +58,8 @@ class OrdersColumns {
 
 	public static function render_column_wc( string $column, $order ): void {
 		if ( ! $order || ! method_exists( $order, 'get_id' ) ) { return; }
+		$id = (string) $order->get_id();
+		if ( self::already_rendered( $column, $id ) ) { return; }
 		if ( $column === 'zw_ms_origin' ) {
 			$site_id = (string) $order->get_meta( '_zw_ms_remote_site_id' );
 			echo esc_html( self::site_id_to_domain_or_local( $site_id ) );
@@ -83,5 +86,13 @@ class OrdersColumns {
 			$domain = (string) wp_parse_url( (string) $row->site_url, PHP_URL_HOST );
 		}
 		return $domain !== '' ? $domain : $site_id;
+	}
+
+	private static function already_rendered( string $column, string $id ): bool {
+		static $seen = [];
+		$key = $column . ':' . $id;
+		if ( isset( $seen[ $key ] ) ) { return true; }
+		$seen[ $key ] = true;
+		return false;
 	}
 }
