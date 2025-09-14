@@ -58,7 +58,9 @@ class PrimaryHooks {
 		self::maybe_send_customer_email( $order );
 
 		// Always send custom email (ensures delivery irrespective of Woo email state)
+		Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
 		CustomSender::send_order_keys_email( $order );
+		Logger::instance()->log( 'info', 'Custom email send attempted', [ 'order_id' => $order->get_id() ] );
 	}
 
 	private static function attach_keys_to_order( \WC_Order $order, array $allocations ): void {
