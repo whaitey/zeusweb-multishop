@@ -71,6 +71,7 @@ class CDKeys {
 					<th><?php esc_html_e( 'Product', 'zeusweb-multishop' ); ?></th>
 					<th><?php esc_html_e( 'Available keys', 'zeusweb-multishop' ); ?></th>
 					<th><?php esc_html_e( 'Assigned keys', 'zeusweb-multishop' ); ?></th>
+					<th><?php esc_html_e( 'Pending backorders', 'zeusweb-multishop' ); ?></th>
 					<th><?php esc_html_e( 'Actions', 'zeusweb-multishop' ); ?></th>
 				</tr>
 			</thead>
@@ -81,10 +82,11 @@ class CDKeys {
 						<td><a href="<?php echo esc_url( get_edit_post_link( $pid ) ); ?>" target="_blank"><?php echo esc_html( get_the_title() ); ?></a></td>
 						<td><?php echo esc_html( (string) self::count_keys( $pid, 'available' ) ); ?></td>
 						<td><?php echo esc_html( (string) self::count_keys( $pid, 'assigned' ) ); ?></td>
+						<td><?php echo esc_html( (string) self::count_backorders( $pid ) ); ?></td>
 						<td><a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=zw-ms-keys&product_id=' . $pid ) ); ?>"><?php esc_html_e( 'Manage keys', 'zeusweb-multishop' ); ?></a></td>
 					</tr>
 				<?php endwhile; else: ?>
-					<tr><td colspan="5"><?php esc_html_e( 'No products found.', 'zeusweb-multishop' ); ?></td></tr>
+					<tr><td colspan="6"><?php esc_html_e( 'No products found.', 'zeusweb-multishop' ); ?></td></tr>
 				<?php endif; wp_reset_postdata(); ?>
 			</tbody>
 		</table>
@@ -103,11 +105,13 @@ class CDKeys {
 		$table = Tables::keys();
 		$available = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE product_id = %d AND status = 'available'", $product_id ) );
 		$assigned  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$table} WHERE product_id = %d AND status = 'assigned'", $product_id ) );
+		$pending_bo = self::count_backorders( $product_id );
 		$product_title = get_the_title( $product_id );
 		?>
 		<h2><?php echo esc_html( sprintf( __( 'Product: %s', 'zeusweb-multishop' ), $product_title ?: (string) $product_id ) ); ?></h2>
 		<p><?php esc_html_e( 'Available keys:', 'zeusweb-multishop' ); ?> <strong><?php echo esc_html( (string) $available ); ?></strong></p>
 		<p><?php esc_html_e( 'Assigned keys:', 'zeusweb-multishop' ); ?> <strong><?php echo esc_html( (string) $assigned ); ?></strong></p>
+		<p><?php esc_html_e( 'Pending backorders:', 'zeusweb-multishop' ); ?> <strong><?php echo esc_html( (string) $pending_bo ); ?></strong></p>
 		<?php
 	}
 
@@ -218,6 +222,13 @@ class CDKeys {
 		add_settings_error( 'zw_ms_keys', 'keys_imported', sprintf( __( 'Imported %d keys.', 'zeusweb-multishop' ), $inserted ), 'updated' );
 		// Trigger fulfillment for this product.
 		FulfillmentService::fulfill_backorders_for_product( $product_id );
+	}
+
+	private static function count_backorders( int $product_id ): int {
+		global $wpdb;
+		$table = Tables::backorders();
+		$val = $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(qty_pending),0) FROM {$table} WHERE product_id = %d AND (fulfilled_at IS NULL OR fulfilled_at = '')", $product_id ) );
+		return (int) $val;
 	}
 }
 
