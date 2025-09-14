@@ -100,6 +100,8 @@ class Payments {
 			$gw = \WC()->payment_gateways();
 			if ( $gw && method_exists( $gw, 'payment_gateways' ) ) {
 				foreach ( $gw->payment_gateways() as $id => $g ) {
+					// Hide Stripe sub-methods in UI; manage Stripe as a single toggle
+					if ( strpos( (string) $id, 'stripe_' ) === 0 ) { continue; }
 					$gateways[ $id ] = $g->get_method_title() ?: $id;
 				}
 			}
@@ -143,6 +145,21 @@ class Payments {
 		$site_id = isset( $_POST['zw_ms_site_id'] ) ? sanitize_text_field( wp_unslash( $_POST['zw_ms_site_id'] ) ) : '';
 		$consumer = isset( $_POST['zw_ms_gateways_consumer'] ) && is_array( $_POST['zw_ms_gateways_consumer'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['zw_ms_gateways_consumer'] ) ) : [];
 		$business = isset( $_POST['zw_ms_gateways_business'] ) && is_array( $_POST['zw_ms_gateways_business'] ) ? array_map( 'sanitize_text_field', wp_unslash( $_POST['zw_ms_gateways_business'] ) ) : [];
+
+		// Normalize Stripe family: if any stripe_* present, convert to single 'stripe'; remove stripe_* entries
+		$normalize = function( array $ids ): array {
+			$has_stripe_child = false;
+			$out = [];
+			foreach ( $ids as $id ) {
+				if ( strpos( (string) $id, 'stripe_' ) === 0 ) { $has_stripe_child = true; continue; }
+				$out[] = $id;
+			}
+			if ( $has_stripe_child && ! in_array( 'stripe', $out, true ) ) { $out[] = 'stripe'; }
+			return array_values( array_unique( $out ) );
+		};
+		$consumer = $normalize( $consumer );
+		$business = $normalize( $business );
+
 		if ( $site_id !== '' ) {
 			$matrix[ $site_id ] = [ 'consumer' => array_values( $consumer ), 'business' => array_values( $business ) ];
 			update_option( $option_key, $matrix, false );
