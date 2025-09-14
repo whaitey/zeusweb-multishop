@@ -19,9 +19,26 @@ class Enforcer {
 			if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return $gateways; }
 			$segment = SegmentManager::is_business() ? 'business' : 'consumer';
 			$allowed = self::get_allowed_gateways_for_segment( $segment );
-			if ( empty( $allowed ) ) { return $gateways; }
+			// If no gateways are allowed (no mapping or empty mapping), hide all.
+			if ( empty( $allowed ) ) { return []; }
+
+			$allowed_map = array_fill_keys( $allowed, true );
+			$allow_stripe_family = isset( $allowed_map['stripe'] );
+
 			foreach ( $gateways as $id => $g ) {
-				if ( ! in_array( $id, $allowed, true ) ) {
+				// Handle Stripe family: only show base 'stripe' if allowed; hide all 'stripe_*'
+				if ( $id === 'stripe' ) {
+					if ( ! $allow_stripe_family ) { unset( $gateways[ $id ] ); }
+					continue;
+				}
+				if ( strpos( $id, 'stripe_' ) === 0 ) {
+					// Always hide sub-methods; user controls Stripe as a whole via 'stripe'
+					unset( $gateways[ $id ] );
+					continue;
+				}
+
+				// For non-family gateways, enforce explicit allow list
+				if ( ! isset( $allowed_map[ $id ] ) ) {
 					unset( $gateways[ $id ] );
 				}
 			}
