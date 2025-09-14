@@ -15,6 +15,7 @@ use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
 use ZeusWeb\Multishop\Orders\PrimaryHooks;
 use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
+use ZeusWeb\Multishop\Admin\OrdersColumns;
 use ZeusWeb\Multishop\Templates\CanvasEnforcer;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
@@ -78,6 +79,7 @@ class Plugin {
 		PricingResolver::init();
 		EmailHooks::init();
 		AdminMenu::init();
+		OrdersColumns::init();
 		RestRoutes::init();
 		SecondaryHooks::init();
 		PrimaryHooks::init();
