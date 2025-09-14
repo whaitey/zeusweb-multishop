@@ -58,8 +58,8 @@ class SecondaryHooks {
 		if ( ! $primary ) {
 			return;
 		}
-		$path   = '/wp-json/zw-ms/v1/allocate-keys';
-		$url    = rtrim( $primary, '/' ) . $path;
+		$path   = '/zw-ms/v1/allocate-keys';
+		$url    = rtrim( $primary, '/' ) . '/wp-json' . $path;
 		$method = 'POST';
 		$timestamp = (string) time();
 		$nonce     = wp_generate_uuid4();

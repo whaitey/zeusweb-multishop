@@ -89,13 +89,13 @@ class Menu {
 			add_settings_error( 'zw_ms', 'sync_missing', __( 'Primary URL or Primary shared secret missing.', 'zeusweb-multishop' ), 'error' );
 			return;
 		}
-		$path = '/wp-json/zw-ms/v1/catalog';
+		$path = '/zw-ms/v1/catalog';
 		$method = 'GET';
 		$timestamp = (string) time();
 		$nonce = wp_generate_uuid4();
 		$body = '';
 		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $primary_secret );
-		$url = rtrim( $primary, '/' ) . $path;
+		$url = rtrim( $primary, '/' ) . '/wp-json' . $path;
 		$args = [
 			'headers' => [
 				'X-ZW-Timestamp' => $timestamp,
