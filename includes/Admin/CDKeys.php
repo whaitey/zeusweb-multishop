@@ -13,6 +13,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class CDKeys {
 	public static function render_page(): void {
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'primary' ) {
+			?>
+			<div class="wrap"><h1><?php esc_html_e( 'CD Keys Manager', 'zeusweb-multishop' ); ?></h1>
+			<p><?php esc_html_e( 'This page is available only on the Primary site.', 'zeusweb-multishop' ); ?></p></div>
+			<?php
+			return;
+		}
 		if ( isset( $_POST['zw_ms_keys_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_keys_nonce'] ) ), 'zw_ms_keys_save' ) && current_user_can( 'manage_woocommerce' ) ) {
 			self::handle_submit();
 		}

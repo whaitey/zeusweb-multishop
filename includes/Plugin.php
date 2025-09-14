@@ -74,7 +74,9 @@ class Plugin {
 		SecondaryHooks::init();
 		PrimaryHooks::init();
 		add_action( 'admin_menu', function() {
-			add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );
+			if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) {
+				add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );
+			}
 		} );
 
 		// Enforce Elementor Canvas template site-wide (per user request)
