@@ -25,13 +25,26 @@ class Astra {
 		if ( ! self::is_astra() ) {
 			return;
 		}
-		// Replace header/footer via Astra hook locations to ensure compatibility.
+		
+		// Check if we have any segment templates configured
 		$has_header = (int) get_option( 'zw_ms_tpl_header_consumer', 0 ) || (int) get_option( 'zw_ms_tpl_header_business', 0 );
 		$has_footer = (int) get_option( 'zw_ms_tpl_footer_consumer', 0 ) || (int) get_option( 'zw_ms_tpl_footer_business', 0 );
 
+		if ( $has_header || $has_footer ) {
+			// Disable Astra's native header/footer when we have segment templates
+			add_action( 'template_redirect', function() {
+				if ( SegmentManager::get_current_segment() ) {
+					// Remove Astra header/footer
+					remove_action( 'astra_header', 'astra_header_markup' );
+					remove_action( 'astra_footer', 'astra_footer_markup' );
+				}
+			}, 1 );
+		}
+
 		if ( $has_header ) {
-			// Prefer Astra slots; if none render, fallback to wp_body_open
+			// Use multiple hooks to ensure header renders
 			add_action( 'astra_header', [ Renderer::class, 'render_header_template' ], 10 );
+			add_action( 'astra_header_before', [ Renderer::class, 'render_header_template' ], 10 );
 			add_action( 'wp_body_open', function() {
 				if ( SegmentManager::get_current_segment() && ! did_action( 'zw_ms/header_rendered' ) ) {
 					Renderer::render_header_template();
@@ -40,7 +53,9 @@ class Astra {
 		}
 
 		if ( $has_footer ) {
+			// Use multiple hooks to ensure footer renders
 			add_action( 'astra_footer', [ Renderer::class, 'render_footer_template' ], 10 );
+			add_action( 'astra_footer_before', [ Renderer::class, 'render_footer_template' ], 10 );
 			add_action( 'wp_footer', function() {
 				if ( SegmentManager::get_current_segment() && ! did_action( 'zw_ms/footer_rendered' ) ) {
 					Renderer::render_footer_template();

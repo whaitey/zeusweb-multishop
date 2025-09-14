@@ -17,6 +17,9 @@ class Manager {
 		add_filter( 'request', [ __CLASS__, 'rewrite_request_path' ] );
 		add_action( 'template_redirect', [ __CLASS__, 'handle_segment_entry' ], 1 );
 		add_action( 'init', [ __CLASS__, 'maybe_set_segment_from_param' ], 1 );
+		
+		// Add debug notice for admins
+		add_action( 'wp_footer', [ __CLASS__, 'show_debug_notice' ], 9999 );
 	}
 
 	public static function register_query_vars( array $vars ): array {
@@ -86,31 +89,50 @@ class Manager {
 		if ( ! $current ) {
 			return;
 		}
+		
+		// Get previous segment from cookie
 		$previous = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+		
+		// If segment changed, empty the cart
 		if ( $previous && $previous !== $current ) {
 			if ( function_exists( 'WC' ) && WC()->cart ) {
 				WC()->cart->empty_cart();
 			}
 		}
-		// Refresh cookie for 30 days and persist in WooCommerce session if available.
+		
+		// Always update cookie and session to ensure persistence
 		setcookie( self::COOKIE, $current, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+		
+		// Also store in WooCommerce session if available
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			WC()->session->set( self::COOKIE, $current );
 		}
-
-        // Do not alter base pages' content; if user created pages at /lakossagi or /uzleti, let WP render them.
 	}
 
 	public static function maybe_set_segment_from_param(): void {
 		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
 			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
 			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
-				// Set cookie immediately; cart emptying will occur on next template_redirect in handle_segment_entry
+				// Get previous segment for cart clearing
+				$previous = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+				
+				// Set cookie immediately
 				setcookie( self::COOKIE, $seg, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+				$_COOKIE[ self::COOKIE ] = $seg; // Update superglobal for immediate use
+				
+				// Store in WooCommerce session
 				if ( function_exists( 'WC' ) && WC()->session ) {
 					WC()->session->set( self::COOKIE, $seg );
 				}
-				// Redirect to the same URL without the param so the new segment applies consistently
+				
+				// Empty cart if segment changed
+				if ( $previous && $previous !== $seg ) {
+					if ( function_exists( 'WC' ) && WC()->cart ) {
+						WC()->cart->empty_cart();
+					}
+				}
+				
+				// Redirect to clean URL
 				$target = remove_query_arg( [ 'zw_ms_set_segment' ] );
 				if ( ! headers_sent() ) {
 					wp_safe_redirect( $target );
@@ -121,25 +143,41 @@ class Manager {
 	}
 
 	public static function get_current_segment(): string {
+		// First check if we're explicitly setting a segment via URL param
+		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
+			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
+				return $seg;
+			}
+		}
+		
+		// Check query var from rewrite rules
 		$segment = get_query_var( self::QUERY_VAR );
 		if ( $segment === 'consumer' || $segment === 'business' ) {
 			return $segment;
 		}
-		// Prefer persisted selection over path detection
+		
+		// Check cookie (most reliable for persistence)
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		if ( $from_cookie === 'consumer' || $from_cookie === 'business' ) {
 			return $from_cookie;
 		}
+		
+		// Check WooCommerce session
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			$from_session = (string) WC()->session->get( self::COOKIE, '' );
 			if ( $from_session === 'consumer' || $from_session === 'business' ) {
 				return $from_session;
 			}
 		}
+		
+		// Fallback to path detection
 		$from_path = self::detect_segment_from_path();
 		if ( $from_path ) {
 			return $from_path;
 		}
+		
+		// Default to empty (no segment selected)
 		return '';
 	}
 
@@ -161,6 +199,23 @@ class Manager {
 
 	public static function is_consumer(): bool {
 		return self::get_current_segment() === 'consumer';
+	}
+	
+	public static function show_debug_notice(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		
+		$segment = self::get_current_segment();
+		$cookie = isset( $_COOKIE[ self::COOKIE ] ) ? $_COOKIE[ self::COOKIE ] : 'not set';
+		$query_var = get_query_var( self::QUERY_VAR ) ?: 'not set';
+		
+		echo '<div style="position: fixed; bottom: 10px; right: 10px; background: #333; color: #fff; padding: 10px; z-index: 99999; font-size: 12px; border-radius: 5px;">';
+		echo '<strong>Multishop Debug:</strong><br>';
+		echo 'Current Segment: <strong>' . ( $segment ?: 'none' ) . '</strong><br>';
+		echo 'Cookie: ' . esc_html( $cookie ) . '<br>';
+		echo 'Query Var: ' . esc_html( $query_var ) . '<br>';
+		echo '</div>';
 	}
 }
 

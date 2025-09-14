@@ -44,7 +44,15 @@ class Renderer {
 	}
 
 	private static function get_template_id( string $slot ): int {
-		$segment = SegmentManager::is_business() ? 'business' : 'consumer';
+		// Get current segment
+		$segment = SegmentManager::get_current_segment();
+		
+		// If no segment is set, return 0 (no template)
+		if ( ! $segment ) {
+			return 0;
+		}
+		
+		// Get the appropriate template ID based on slot and segment
 		switch ( $slot . '_' . $segment ) {
 			case 'header_consumer':
 				return (int) get_option( 'zw_ms_tpl_header_consumer', 0 );
@@ -54,28 +62,39 @@ class Renderer {
 				return (int) get_option( 'zw_ms_tpl_footer_consumer', 0 );
 			case 'footer_business':
 				return (int) get_option( 'zw_ms_tpl_footer_business', 0 );
-			// Single product handled by Elementor Theme Builder
 		}
 		return 0;
 	}
 
 	public static function render_header_template(): void {
+		// Don't render if already rendered
+		if ( did_action( 'zw_ms/header_rendered' ) ) {
+			return;
+		}
+		
 		if ( ! apply_filters( 'zw_ms_should_render_header_footer', true ) ) {
 			return;
 		}
+		
 		$id = self::get_template_id( 'header' );
-		if ( $id ) {
+		if ( $id > 0 ) {
 			self::render_elementor_template( $id );
 			do_action( 'zw_ms/header_rendered' );
 		}
 	}
 
 	public static function render_footer_template(): void {
+		// Don't render if already rendered
+		if ( did_action( 'zw_ms/footer_rendered' ) ) {
+			return;
+		}
+		
 		if ( ! apply_filters( 'zw_ms_should_render_header_footer', true ) ) {
 			return;
 		}
+		
 		$id = self::get_template_id( 'footer' );
-		if ( $id ) {
+		if ( $id > 0 ) {
 			self::render_elementor_template( $id );
 			do_action( 'zw_ms/footer_rendered' );
 		}
