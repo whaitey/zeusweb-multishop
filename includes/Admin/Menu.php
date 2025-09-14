@@ -62,8 +62,9 @@ class Menu {
 		// General settings
 		register_setting( 'zw_ms', 'zw_ms_mode' );
 		register_setting( 'zw_ms', 'zw_ms_primary_url' );
-		register_setting( 'zw_ms', 'zw_ms_site_id' );
-		register_setting( 'zw_ms', 'zw_ms_secret' );
+		// Do NOT register generated identifiers; prevents WP settings save from resetting them
+		// register_setting( 'zw_ms', 'zw_ms_site_id' );
+		// register_setting( 'zw_ms', 'zw_ms_secret' );
 		register_setting( 'zw_ms', 'zw_ms_primary_secret' );
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
         register_setting( 'zw_ms', 'zw_ms_enable_custom_email_only' );

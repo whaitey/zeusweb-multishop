@@ -60,10 +60,12 @@ class Plugin {
 		DBLogger::init();
 
 		// Ensure critical options exist even if activation hook didn't run (e.g., after manual install/update).
-		if ( ! get_option( $this->site_id_option_key ) ) {
+		$site_id = get_option( $this->site_id_option_key, '' );
+		if ( ! is_string( $site_id ) || $site_id === '' ) {
 			$this->generate_site_id();
 		}
-		if ( ! get_option( $this->secret_option_key ) ) {
+		$secret = get_option( $this->secret_option_key, '' );
+		if ( ! is_string( $secret ) || $secret === '' ) {
 			$this->generate_secret();
 		}
 
@@ -101,12 +103,14 @@ class Plugin {
 
 	public function activate() {
 		// Ensure site identifier exists.
-		if ( ! get_option( $this->site_id_option_key ) ) {
+		$site_id = get_option( $this->site_id_option_key, '' );
+		if ( ! is_string( $site_id ) || $site_id === '' ) {
 			$this->generate_site_id();
 		}
 
 		// Ensure secret exists for crypto/HMAC.
-		if ( ! get_option( $this->secret_option_key ) ) {
+		$secret = get_option( $this->secret_option_key, '' );
+		if ( ! is_string( $secret ) || $secret === '' ) {
 			$this->generate_secret();
 		}
 
@@ -127,11 +131,11 @@ class Plugin {
 	}
 
 	public function get_site_id(): string {
-		return (string) get_option( $this->site_id_option_key );
+		return (string) get_option( $this->site_id_option_key, '' );
 	}
 
 	public function get_secret(): string {
-		return (string) get_option( $this->secret_option_key );
+		return (string) get_option( $this->secret_option_key, '' );
 	}
 
 	private function generate_site_id(): void {
