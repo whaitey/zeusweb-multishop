@@ -18,6 +18,7 @@ use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
 use ZeusWeb\Multishop\Templates\CanvasEnforcer;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
+use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -80,6 +81,9 @@ class Plugin {
 		CanvasEnforcer::init();
 		ElementorRenderer::init();
 		AstraCompat::init();
+
+		// Show shortage notice on thank-you and view-order if relevant
+		CheckoutNotices::init();
 	}
 
 	public function activate() {
