@@ -22,6 +22,13 @@ class Manager {
 		
 		// Handle cart clearing on segment switch
 		add_action( 'template_redirect', [ __CLASS__, 'maybe_clear_cart' ], 1 );
+
+		// Ensure WooCommerce session mirrors current segment after WC boot
+		add_action( 'init', [ __CLASS__, 'sync_session_from_signals' ], 20 );
+
+		// Ensure WooCommerce URLs keep the current segment during navigation
+		add_filter( 'woocommerce_get_cart_url', [ __CLASS__, 'add_segment_to_url' ] );
+		add_filter( 'woocommerce_get_checkout_url', [ __CLASS__, 'add_segment_to_url' ] );
 		
 		// Add JavaScript cookie setter as fallback
 		add_action( 'wp_head', [ __CLASS__, 'js_cookie_setter' ], 1 );
@@ -114,12 +121,12 @@ class Manager {
 			// Get current cookie value
 			$current_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 			
-			// Mark if segment changed for cart clearing
-			if ( $current_cookie && $current_cookie !== $new_segment ) {
-				if ( ! session_id() ) {
-					@session_start();
+			// Mark if segment changed for cart clearing (session flag)
+			if ( function_exists( 'WC' ) && WC()->session ) {
+				$session_seg = (string) WC()->session->get( self::COOKIE, '' );
+				if ( $session_seg && $session_seg !== $new_segment ) {
+					WC()->session->set( '_zw_ms_segment_switched', 1 );
 				}
-				$_SESSION['_zw_ms_segment_switched'] = true;
 			}
 			
 			// Try to set the cookie via PHP
@@ -148,14 +155,14 @@ class Manager {
 	 * Clear cart if segment was switched
 	 */
 	public static function maybe_clear_cart(): void {
-		if ( ! session_id() ) {
-			@session_start();
-		}
-		if ( isset( $_SESSION['_zw_ms_segment_switched'] ) && $_SESSION['_zw_ms_segment_switched'] ) {
-			if ( function_exists( 'WC' ) && WC()->cart ) {
-				WC()->cart->empty_cart();
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			$flag = (int) WC()->session->get( '_zw_ms_segment_switched', 0 );
+			if ( $flag ) {
+				if ( WC()->cart ) {
+					WC()->cart->empty_cart();
+				}
+				WC()->session->set( '_zw_ms_segment_switched', 0 );
 			}
-			unset( $_SESSION['_zw_ms_segment_switched'] );
 		}
 	}
 
@@ -182,6 +189,43 @@ class Manager {
 			] );
 		} else {
 			setcookie( self::COOKIE, $value, $expire, '/', '', is_ssl(), false );
+		}
+	}
+
+	/**
+	 * Keep WooCommerce session in sync with current signals so it persists across navigation.
+	 */
+	public static function sync_session_from_signals(): void {
+		if ( ! function_exists( 'WC' ) || ! WC()->session ) { return; }
+		$desired = null;
+		// URL param
+		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
+			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) { $desired = $seg; }
+		}
+		// Path
+		if ( ! $desired ) {
+			$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+			$path = strtok( $uri, '?' );
+			if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) { $desired = 'consumer'; }
+			elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) { $desired = 'business'; }
+		}
+		$session_seg = (string) WC()->session->get( self::COOKIE, '' );
+		if ( ! $desired ) {
+			// fallback to existing session or cookie
+			if ( $session_seg ) { $desired = $session_seg; }
+			elseif ( isset( $_COOKIE[ self::COOKIE ] ) ) {
+				$c = sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) );
+				if ( in_array( $c, [ 'consumer', 'business' ], true ) ) { $desired = $c; }
+			}
+		}
+		if ( $desired && $desired !== $session_seg ) {
+			WC()->session->set( self::COOKIE, $desired );
+			self::set_segment_cookie( $desired );
+			$_COOKIE[ self::COOKIE ] = $desired;
+			if ( $session_seg ) {
+				WC()->session->set( '_zw_ms_segment_switched', 1 );
+			}
 		}
 	}
 
@@ -256,39 +300,31 @@ class Manager {
 	 * Get the current segment - SIMPLIFIED LOGIC
 	 */
 	public static function get_current_segment(): string {
-		// 1. Check if we're forcing a segment via URL parameter
+		// 1) URL param
 		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
 			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
-			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
-				return $seg;
-			}
+			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) { return $seg; }
 		}
-		
-		// 2. Check if we're on a segment-specific path (this should take priority when on those pages)
-		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
-		$path = strtok( $uri, '?' );
-		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
-			return 'consumer';
-		} elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
-			return 'business';
-		}
-		
-		// 3. Use persisted value from cookie (this is what should persist across navigation)
-		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
-		if ( in_array( $from_cookie, [ 'consumer', 'business' ], true ) ) {
-			return $from_cookie;
-		}
-		
-		// 4. Check WooCommerce session as fallback
+		// 2) WC session
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			$from_session = (string) WC()->session->get( self::COOKIE, '' );
-			if ( in_array( $from_session, [ 'consumer', 'business' ], true ) ) {
-				return $from_session;
-			}
+			if ( in_array( $from_session, [ 'consumer', 'business' ], true ) ) { return $from_session; }
 		}
-		
-		// 5. Default to empty (no segment selected)
+		// 3) Path
+		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$path = strtok( $uri, '?' );
+		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) { return 'consumer'; }
+		if ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) { return 'business'; }
+		// 4) Cookie fallback
+		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+		if ( in_array( $from_cookie, [ 'consumer', 'business' ], true ) ) { return $from_cookie; }
 		return '';
+	}
+
+	public static function add_segment_to_url( $url ) {
+		$seg = self::get_current_segment();
+		if ( $seg ) { $url = add_query_arg( 'zw_ms_set_segment', $seg, $url ); }
+		return $url;
 	}
 
 	public static function is_business(): bool {
