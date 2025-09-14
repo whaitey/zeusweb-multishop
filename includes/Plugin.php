@@ -55,6 +55,9 @@ class Plugin {
 	public function init() {
 		load_plugin_textdomain( 'zeusweb-multishop', false, dirname( plugin_basename( ZW_MS_PLUGIN_FILE ) ) . '/languages' );
 
+		// Ensure DB tables exist even after updates
+		Installer::maybe_install();
+
 		// Initialize core services that do not depend on DB tables existing.
 		Logger::instance();
 		DBLogger::init();
