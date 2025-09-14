@@ -19,6 +19,7 @@ use ZeusWeb\Multishop\Templates\CanvasEnforcer;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
+use ZeusWeb\Multishop\Orders\OrderNumbers;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -73,6 +74,7 @@ class Plugin {
 		RestRoutes::init();
 		SecondaryHooks::init();
 		PrimaryHooks::init();
+		OrderNumbers::init();
 		add_action( 'admin_menu', function() {
 			if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) {
 				add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );

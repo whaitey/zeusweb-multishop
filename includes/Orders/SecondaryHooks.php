@@ -4,7 +4,6 @@ namespace ZeusWeb\Multishop\Orders;
 
 use ZeusWeb\Multishop\Segments\Manager as SegmentManager;
 use ZeusWeb\Multishop\Logger\Logger;
-use ZeusWeb\Multishop\Emails\CustomSender;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -13,26 +12,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SecondaryHooks {
 	public static function init(): void {
 		add_action( 'woocommerce_order_status_processing', [ __CLASS__, 'on_order_paid' ], 10, 2 );
-		add_action( 'woocommerce_thankyou', [ __CLASS__, 'on_thankyou_fallback' ], 20, 1 );
+		add_action( 'woocommerce_thankyou', [ __CLASS__, 'on_thankyou_notice_only' ], 20, 1 );
 	}
 
-	public static function on_thankyou_fallback( $order_id ): void {
-		$mode = get_option( 'zw_ms_mode', 'primary' );
-		if ( $mode !== 'secondary' ) { return; }
-		$order = wc_get_order( $order_id );
-		if ( ! $order ) { return; }
-		if ( 'yes' === (string) $order->get_meta( '_zw_ms_custom_email_sent' ) ) { return; }
-		$has_meta = false;
-		foreach ( $order->get_items() as $item_id => $item ) {
-			$keys = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-			$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
-			if ( $keys !== '' || $shortage !== '' ) { $has_meta = true; break; }
-		}
-		if ( ! $has_meta ) { return; }
-		Logger::instance()->log( 'info', 'Thankyou fallback (secondary): sending custom email', [ 'order_id' => $order->get_id() ] );
-		CustomSender::send_order_keys_email( $order );
-		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
-		$order->save();
+	public static function on_thankyou_notice_only( $order_id ): void {
+		// Secondary never sends emails; rely on notices and keys attached to items
 	}
 
 	public static function on_order_paid( $order_id, $order ): void {
@@ -45,26 +29,26 @@ class SecondaryHooks {
 			return;
 		}
 		try {
-			self::request_allocation( $order );
+			self::mirror_order_to_primary( $order );
 			$order->update_meta_data( '_zw_ms_allocated', 'yes' );
 			$order->save();
 		} catch ( \Throwable $e ) {
-			Logger::instance()->log( 'error', 'Allocation request failed', [ 'order_id' => $order_id, 'error' => $e->getMessage() ] );
+			Logger::instance()->log( 'error', 'Mirror order failed', [ 'order_id' => $order_id, 'error' => $e->getMessage() ] );
 		}
 	}
 
-	private static function request_allocation( \WC_Order $order ): void {
+	private static function mirror_order_to_primary( \WC_Order $order ): void {
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
 		if ( ! $primary ) {
-			Logger::instance()->log( 'error', 'Primary URL not set for Secondary allocation', [ 'order_id' => $order->get_id() ] );
+			Logger::instance()->log( 'error', 'Primary URL not set for Secondary mirror', [ 'order_id' => $order->get_id() ] );
 			return;
 		}
 		$primary_secret = (string) get_option( 'zw_ms_primary_secret', '' );
 		if ( ! $primary_secret ) {
-			Logger::instance()->log( 'error', 'Primary shared secret not set on Secondary', [ 'order_id' => $order->get_id() ] );
+			Logger::instance()->log( 'error', 'Primary shared secret not set on Secondary (mirror)', [ 'order_id' => $order->get_id() ] );
 			return;
 		}
-		$path   = '/zw-ms/v1/allocate-keys';
+		$path   = '/zw-ms/v1/mirror-order';
 		$url    = rtrim( $primary, '/' ) . '/wp-json' . $path;
 		$method = 'POST';
 		$timestamp = (string) time();
@@ -73,12 +57,11 @@ class SecondaryHooks {
 			'site_id' => get_option( 'zw_ms_site_id' ),
 			'order_id' => (string) $order->get_id(),
 			'customer_segment' => SegmentManager::is_business() ? 'business' : 'consumer',
+			'customer_email' => (string) $order->get_billing_email(),
 			'items' => self::build_allocation_items( $order ),
 		];
 		$body = wp_json_encode( $body_data );
-
 		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $primary_secret );
-
 		$args = [
 			'headers' => [
 				'Content-Type'     => 'application/json',
@@ -97,31 +80,24 @@ class SecondaryHooks {
 		$code = (int) wp_remote_retrieve_response_code( $response );
 		$resp_body = wp_remote_retrieve_body( $response );
 		if ( $code !== 200 ) {
-			Logger::instance()->log( 'error', 'Primary allocation HTTP error', [ 'order_id' => $order->get_id(), 'status' => $code, 'body' => $resp_body ] );
+			Logger::instance()->log( 'error', 'Primary mirror HTTP error', [ 'order_id' => $order->get_id(), 'status' => $code, 'body' => $resp_body ] );
 			return;
 		}
 		$data = json_decode( $resp_body, true );
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
-			// Always send custom email to ensure delivery
-			CustomSender::send_order_keys_email( $order );
-			$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
-			$order->save();
-			Logger::instance()->log( 'info', 'Secondary custom email sent after allocation', [ 'order_id' => $order->get_id() ] );
+			Logger::instance()->log( 'info', 'Secondary attached keys from Primary mirror', [ 'order_id' => $order->get_id() ] );
 		}
 	}
 
 	private static function build_allocation_items( \WC_Order $order ): array {
 		$items = [];
 		foreach ( $order->get_items() as $item_id => $item ) {
-			// If this is a bundled child item (WooCommerce Product Bundles), include it; skip container bundle items
-			$bundled_by = $item->get_meta( '_bundled_by', true );
 			$product   = $item->get_product();
 			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
 			if ( $is_bundle_container ) {
 				continue;
 			}
-			// Include all non-container items (simple, variation, or bundled children)
 			$items[] = [
 				'product_id'   => (int) $item->get_product_id(),
 				'variation_id' => (int) $item->get_variation_id(),

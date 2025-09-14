@@ -8,6 +8,7 @@ use WP_REST_Response;
 use ZeusWeb\Multishop\Plugin;
 use ZeusWeb\Multishop\Logger\Logger;
 use ZeusWeb\Multishop\Keys\Service as KeysService;
+use ZeusWeb\Multishop\Emails\CustomSender;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -35,6 +36,12 @@ class Routes {
 			'methods'             => WP_REST_Server::READABLE,
 			'permission_callback' => [ __CLASS__, 'verify_hmac' ],
 			'callback'            => [ __CLASS__, 'get_catalog' ],
+		] );
+
+		register_rest_route( 'zw-ms/v1', '/mirror-order', [
+			'methods'             => WP_REST_Server::CREATABLE,
+			'permission_callback' => [ __CLASS__, 'verify_hmac' ],
+			'callback'            => [ __CLASS__, 'mirror_order' ],
 		] );
 	}
 
@@ -68,7 +75,7 @@ class Routes {
 	public static function get_catalog( WP_REST_Request $request ) {
 		// Primary only
 		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'primary' ) {
-			return new WP_REST_Response( [ 'error' => 'not_primary' ], 400 );
+			return new WP_REST_response( [ 'error' => 'not_primary' ], 400 );
 		}
 		$args = [
 			'post_type' => 'product',
@@ -101,6 +108,69 @@ class Routes {
 		}
 		wp_reset_postdata();
 		return new WP_REST_Response( [ 'items' => $items, 'page' => (int) $q->get( 'paged' ), 'max_pages' => (int) $q->max_num_pages ], 200 );
+	}
+
+	public static function mirror_order( WP_REST_Request $request ) {
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'primary' ) {
+			return new WP_REST_Response( [ 'error' => 'not_primary' ], 400 );
+		}
+		$params = $request->get_json_params();
+		$site_id = sanitize_text_field( (string) ( $params['site_id'] ?? '' ) );
+		$remote_order_id = sanitize_text_field( (string) ( $params['order_id'] ?? '' ) );
+		$segment = sanitize_text_field( (string) ( $params['customer_segment'] ?? '' ) );
+		$email = sanitize_email( (string) ( $params['customer_email'] ?? '' ) );
+		$items = is_array( $params['items'] ?? null ) ? $params['items'] : [];
+		try {
+			$order = wc_create_order();
+			if ( $email ) { $order->set_billing_email( $email ); }
+			$order->update_meta_data( '_zw_ms_remote_site_id', $site_id );
+			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
+			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
+			$order->update_meta_data( '_zw_ms_origin_site_code', (string) get_option( 'zw_ms_site_code', '1' ) );
+			foreach ( $items as $it ) {
+				$product_id   = (int) ( $it['product_id'] ?? 0 );
+				$variation_id = (int) ( $it['variation_id'] ?? 0 );
+				$quantity     = max( 0, (int) ( $it['quantity'] ?? 0 ) );
+				if ( $quantity <= 0 || $product_id <= 0 ) { continue; }
+				$prod = wc_get_product( $variation_id ?: $product_id );
+				if ( $prod ) {
+					$order->add_product( $prod, $quantity );
+				}
+			}
+			$order->set_status( 'processing' );
+			$order->save();
+
+			// Allocate keys against remote order ref so backorders track per remote
+			$alloc = KeysService::allocate_for_items( $site_id, $remote_order_id, $items );
+			// Attach keys to primary order for visibility
+			$shortage_msg = (string) get_option( 'zw_ms_shortage_message', '' );
+			foreach ( $alloc as $a ) {
+				$pid = (int) ( $a['product_id'] ?? 0 );
+				$keys = is_array( $a['keys'] ?? null ) ? $a['keys'] : [];
+				$pending = (int) ( $a['pending'] ?? 0 );
+				if ( $pid <= 0 ) { continue; }
+				foreach ( $order->get_items() as $item_id => $item ) {
+					if ( (int) $item->get_product_id() !== $pid ) { continue; }
+					if ( ! empty( $keys ) ) {
+						wc_add_order_item_meta( $item_id, '_zw_ms_keys', implode( "\n", array_map( 'sanitize_text_field', $keys ) ) );
+					}
+					if ( $pending > 0 && $shortage_msg ) {
+						wc_add_order_item_meta( $item_id, '_zw_ms_shortage', $shortage_msg );
+					}
+				}
+			}
+			$order->save();
+
+			// Primary sends customer email
+			if ( $email ) {
+				CustomSender::send_order_keys_email( $order );
+			}
+			Logger::instance()->log( 'info', 'Order mirrored and email sent', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
+			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id() ], 200 );
+		} catch ( \Throwable $e ) {
+			Logger::instance()->log( 'error', 'Mirror order failed', [ 'error' => $e->getMessage(), 'remote_order_id' => $remote_order_id ] );
+			return new WP_REST_Response( [ 'error' => 'mirror_failed' ], 500 );
+		}
 	}
 }
 
