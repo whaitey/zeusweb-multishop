@@ -101,7 +101,7 @@ class Manager {
 		}
 		
 		// Always update cookie and session to ensure persistence
-		setcookie( self::COOKIE, $current, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+		self::set_segment_cookie( $current );
 		
 		// Also store in WooCommerce session if available
 		if ( function_exists( 'WC' ) && WC()->session ) {
@@ -117,7 +117,7 @@ class Manager {
 				$previous = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 				
 				// Set cookie immediately
-				setcookie( self::COOKIE, $seg, time() + 30 * DAY_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), true );
+				self::set_segment_cookie( $seg );
 				$_COOKIE[ self::COOKIE ] = $seg; // Update superglobal for immediate use
 				
 				// Store in WooCommerce session
@@ -133,11 +133,44 @@ class Manager {
 				}
 				
 				// Redirect to clean URL
+				nocache_headers();
 				$target = remove_query_arg( [ 'zw_ms_set_segment' ] );
 				if ( ! headers_sent() ) {
 					wp_safe_redirect( $target );
 					exit;
 				}
+			}
+		}
+	}
+
+	/**
+	 * Robustly set the segment cookie for both COOKIEPATH and SITECOOKIEPATH with modern attributes.
+	 */
+	private static function set_segment_cookie( string $value ): void {
+		$expire = time() + 30 * DAY_IN_SECONDS;
+		$paths = [];
+		$paths[] = ( defined( 'COOKIEPATH' ) && COOKIEPATH ) ? COOKIEPATH : '/';
+		if ( defined( 'SITECOOKIEPATH' ) && SITECOOKIEPATH ) {
+			$paths[] = SITECOOKIEPATH;
+		}
+		$paths = array_unique( $paths );
+
+		foreach ( $paths as $path ) {
+			if ( function_exists( 'wc_setcookie' ) ) {
+				\wc_setcookie( self::COOKIE, $value, $expire, $path );
+				continue;
+			}
+			if ( PHP_VERSION_ID >= 70300 ) {
+				@setcookie( self::COOKIE, $value, [
+					'expires'  => $expire,
+					'path'     => $path ?: '/',
+					'domain'   => defined( 'COOKIE_DOMAIN' ) && COOKIE_DOMAIN ? COOKIE_DOMAIN : '',
+					'secure'   => is_ssl(),
+					'httponly' => true,
+					'samesite' => 'Lax',
+				] );
+			} else {
+				@setcookie( self::COOKIE, $value, $expire, $path ?: '/', defined( 'COOKIE_DOMAIN' ) && COOKIE_DOMAIN ? COOKIE_DOMAIN : '', is_ssl(), true );
 			}
 		}
 	}
