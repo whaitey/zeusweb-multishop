@@ -19,7 +19,12 @@ class Enforcer {
 			if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return $gateways; }
 			$segment = SegmentManager::is_business() ? 'business' : 'consumer';
 			$allowed = self::get_allowed_gateways_for_segment( $segment );
-			// If no gateways are allowed (no mapping or empty mapping), hide all.
+			// If fetch failed (null), do not block checkout; keep original list
+			if ( $allowed === null ) {
+				Logger::instance()->log( 'warning', 'payments-config unavailable; not enforcing', [ 'segment' => $segment ] );
+				return $gateways;
+			}
+			// If no gateways are allowed (valid empty mapping), hide all.
 			if ( empty( $allowed ) ) {
 				Logger::instance()->log( 'info', 'No gateways allowed for segment; hiding all', [ 'segment' => $segment ] );
 				return [];
@@ -59,15 +64,15 @@ class Enforcer {
 		}
 	}
 
-	private static function get_allowed_gateways_for_segment( string $segment ): array {
+	private static function get_allowed_gateways_for_segment( string $segment ): ?array {
 		$cache_key = 'zw_ms_pay_cfg_' . $segment;
 		$cached = get_transient( $cache_key );
 		if ( is_array( $cached ) ) { return $cached; }
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
 		$secret  = (string) get_option( 'zw_ms_primary_secret', '' );
 		if ( ! $primary || ! $secret ) {
-			Logger::instance()->log( 'warning', 'Primary URL or shared secret missing on Secondary; no gateways allowed', [ 'primary_url' => $primary ? 'set' : 'missing', 'secret' => $secret ? 'set' : 'missing' ] );
-			return [];
+			Logger::instance()->log( 'warning', 'Primary URL or shared secret missing on Secondary; not enforcing', [ 'primary_url' => $primary ? 'set' : 'missing', 'secret' => $secret ? 'set' : 'missing' ] );
+			return null;
 		}
 		$site_id = (string) get_option( 'zw_ms_site_id', '' );
 		// Sign ONLY the route path (no query) to match server verify_hmac
@@ -79,16 +84,17 @@ class Enforcer {
 		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $unsigned_path, $timestamp, $nonce, $body, $secret );
 		$url = rtrim( $primary, '/' ) . '/wp-json' . $unsigned_path . '?site_id=' . rawurlencode( $site_id ) . '&segment=' . rawurlencode( $segment ) . '&t=' . rawurlencode( (string) $timestamp );
 		$args = [ 'headers' => [ 'X-ZW-Timestamp' => $timestamp, 'X-ZW-Nonce' => $nonce, 'X-ZW-Signature' => $signature, 'Accept' => 'application/json' ], 'timeout' => 15 ];
+		Logger::instance()->log( 'info', 'payments-config request', [ 'url' => $url, 'site_id' => $site_id, 'segment' => $segment ] );
 		$response = wp_remote_get( $url, $args );
-		if ( is_wp_error( $response ) ) { return []; }
+		if ( is_wp_error( $response ) ) { Logger::instance()->log( 'error', 'payments-config wp_error', [ 'error' => $response->get_error_message() ] ); return null; }
 		$code = (int) wp_remote_retrieve_response_code( $response );
 		$body_json = wp_remote_retrieve_body( $response );
 		if ( $code !== 200 ) {
 			Logger::instance()->log( 'warning', 'payments-config fetch non-200', [ 'code' => $code, 'body' => substr( $body_json, 0, 300 ) ] );
-			return [];
+			return null;
 		}
 		$data = json_decode( $body_json, true );
-		if ( ! is_array( $data ) || ! is_array( $data['allowed'] ?? null ) ) { return []; }
+		if ( ! is_array( $data ) || ! is_array( $data['allowed'] ?? null ) ) { Logger::instance()->log( 'warning', 'payments-config invalid body' ); return null; }
 		$allowed = array_values( array_map( 'strval', $data['allowed'] ) );
 		Logger::instance()->log( 'info', 'payments-config allowed gateways', [ 'segment' => $segment, 'allowed' => $allowed ] );
 		set_transient( $cache_key, $allowed, 60 );
