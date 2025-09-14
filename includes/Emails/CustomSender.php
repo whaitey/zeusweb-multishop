@@ -26,6 +26,31 @@ class CustomSender {
 		wp_mail( $to, $subject, $body_inner, $headers );
 	}
 
+	public static function should_send_custom_email_now( \WC_Order $order ): bool {
+		// Custom-only setting
+		if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) {
+			return true;
+		}
+		// If Woo customer emails for current status are disabled, send our custom email
+		$status = $order->get_status();
+		if ( function_exists( 'WC' ) && WC()->mailer() ) {
+			$emails = WC()->mailer()->get_emails();
+			$processing_enabled = false;
+			$completed_enabled = false;
+			foreach ( $emails as $email ) {
+				if ( $email instanceof \WC_Email_Customer_Processing_Order && method_exists( $email, 'is_enabled' ) ) {
+					$processing_enabled = $email->is_enabled();
+				}
+				if ( $email instanceof \WC_Email_Customer_Completed_Order && method_exists( $email, 'is_enabled' ) ) {
+					$completed_enabled = $email->is_enabled();
+				}
+			}
+			if ( $status === 'processing' && ! $processing_enabled ) { return true; }
+			if ( $status === 'completed' && ! $completed_enabled ) { return true; }
+		}
+		return false;
+	}
+
 	private static function build_email_html( \WC_Order $order ): string {
 		$items_html = '';
 		foreach ( $order->get_items() as $item_id => $item ) {

@@ -40,7 +40,7 @@ class PrimaryHooks {
 		$alloc   = KeysService::allocate_for_items( $site_id, (string) $order->get_id(), $items );
 		self::attach_keys_to_order( $order, $alloc );
 		self::maybe_send_customer_email( $order );
-		if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) {
+		if ( CustomSender::should_send_custom_email_now( $order ) ) {
 			CustomSender::send_order_keys_email( $order );
 		}
 	}
