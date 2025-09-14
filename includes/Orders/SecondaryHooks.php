@@ -58,7 +58,7 @@ class SecondaryHooks {
 			'order_id' => (string) $order->get_id(),
 			'customer_segment' => SegmentManager::is_business() ? 'business' : 'consumer',
 			'customer_email' => (string) $order->get_billing_email(),
-			'items' => self::build_allocation_items( $order ),
+			'items' => self::build_items_with_skus( $order ),
 		];
 		$body = wp_json_encode( $body_data );
 		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $primary_secret );
@@ -90,18 +90,17 @@ class SecondaryHooks {
 		}
 	}
 
-	private static function build_allocation_items( \WC_Order $order ): array {
+	private static function build_items_with_skus( \WC_Order $order ): array {
 		$items = [];
 		foreach ( $order->get_items() as $item_id => $item ) {
 			$product   = $item->get_product();
-			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
-			if ( $is_bundle_container ) {
-				continue;
-			}
+			if ( ! $product ) { continue; }
+			$is_bundle_container = method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+			if ( $is_bundle_container ) { continue; }
+			$sku = (string) $product->get_sku();
 			$items[] = [
-				'product_id'   => (int) $item->get_product_id(),
-				'variation_id' => (int) $item->get_variation_id(),
-				'quantity'     => (int) $item->get_quantity(),
+				'sku'       => $sku,
+				'quantity'  => (int) $item->get_quantity(),
 			];
 		}
 		return $items;

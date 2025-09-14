@@ -73,16 +73,10 @@ class Routes {
 	}
 
 	public static function get_catalog( WP_REST_Request $request ) {
-		// Primary only
 		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'primary' ) {
 			return new WP_REST_response( [ 'error' => 'not_primary' ], 400 );
 		}
-		$args = [
-			'post_type' => 'product',
-			'post_status' => [ 'publish' ],
-			'posts_per_page' => 200,
-			'paged' => max( 1, absint( $request->get_param( 'page' ) ?: 1 ) ),
-		];
+		$args = [ 'post_type' => 'product', 'post_status' => [ 'publish' ], 'posts_per_page' => 200, 'paged' => max( 1, absint( $request->get_param( 'page' ) ?: 1 ) ) ];
 		$q = new \WP_Query( $args );
 		$items = [];
 		while ( $q->have_posts() ) { $q->the_post();
@@ -96,15 +90,7 @@ class Routes {
 			$custom_email = (string) get_post_meta( $pid, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, true );
 			$image_id = get_post_thumbnail_id( $pid );
 			$image_url = $image_id ? (string) wp_get_attachment_url( $image_id ) : '';
-			$items[] = [
-				'sku' => $sku,
-				'title' => get_the_title( $pid ),
-				'type' => $type,
-				'price' => $regular,
-				'business_price' => $business === '' ? null : (float) $business,
-				'custom_email' => $custom_email,
-				'image' => $image_url,
-			];
+			$items[] = [ 'sku' => $sku, 'title' => get_the_title( $pid ), 'type' => $type, 'price' => $regular, 'business_price' => $business === '' ? null : (float) $business, 'custom_email' => $custom_email, 'image' => $image_url ];
 		}
 		wp_reset_postdata();
 		return new WP_REST_Response( [ 'items' => $items, 'page' => (int) $q->get( 'paged' ), 'max_pages' => (int) $q->max_num_pages ], 200 );
@@ -119,7 +105,7 @@ class Routes {
 		$remote_order_id = sanitize_text_field( (string) ( $params['order_id'] ?? '' ) );
 		$segment = sanitize_text_field( (string) ( $params['customer_segment'] ?? '' ) );
 		$email = sanitize_email( (string) ( $params['customer_email'] ?? '' ) );
-		$items = is_array( $params['items'] ?? null ) ? $params['items'] : [];
+		$items_raw = is_array( $params['items'] ?? null ) ? $params['items'] : [];
 		try {
 			$order = wc_create_order();
 			if ( $email ) { $order->set_billing_email( $email ); }
@@ -127,22 +113,25 @@ class Routes {
 			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
 			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
 			$order->update_meta_data( '_zw_ms_origin_site_code', (string) get_option( 'zw_ms_site_code', '1' ) );
-			foreach ( $items as $it ) {
-				$product_id   = (int) ( $it['product_id'] ?? 0 );
-				$variation_id = (int) ( $it['variation_id'] ?? 0 );
-				$quantity     = max( 0, (int) ( $it['quantity'] ?? 0 ) );
-				if ( $quantity <= 0 || $product_id <= 0 ) { continue; }
-				$prod = wc_get_product( $variation_id ?: $product_id );
+
+			// Resolve SKUs to products and add to order
+			$alloc_items = [];
+			foreach ( $items_raw as $it ) {
+				$sku = sanitize_text_field( (string) ( $it['sku'] ?? '' ) );
+				$quantity = max( 0, (int) ( $it['quantity'] ?? 0 ) );
+				if ( $sku === '' || $quantity <= 0 ) { continue; }
+				$product_id = wc_get_product_id_by_sku( $sku );
+				if ( ! $product_id ) { continue; }
+				$prod = wc_get_product( $product_id );
 				if ( $prod ) {
 					$order->add_product( $prod, $quantity );
+					$alloc_items[] = [ 'product_id' => (int) $product_id, 'variation_id' => 0, 'quantity' => $quantity ];
 				}
 			}
 			$order->set_status( 'processing' );
 			$order->save();
 
-			// Allocate keys against remote order ref so backorders track per remote
-			$alloc = KeysService::allocate_for_items( $site_id, $remote_order_id, $items );
-			// Attach keys to primary order for visibility
+			$alloc = KeysService::allocate_for_items( $site_id, $remote_order_id, $alloc_items );
 			$shortage_msg = (string) get_option( 'zw_ms_shortage_message', '' );
 			foreach ( $alloc as $a ) {
 				$pid = (int) ( $a['product_id'] ?? 0 );
@@ -161,10 +150,7 @@ class Routes {
 			}
 			$order->save();
 
-			// Primary sends customer email
-			if ( $email ) {
-				CustomSender::send_order_keys_email( $order );
-			}
+			if ( $email ) { CustomSender::send_order_keys_email( $order ); }
 			Logger::instance()->log( 'info', 'Order mirrored and email sent', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
 			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id() ], 200 );
 		} catch ( \Throwable $e ) {
