@@ -119,19 +119,20 @@ class Manager {
 		if ( $segment === 'consumer' || $segment === 'business' ) {
 			return $segment;
 		}
-		$from_path = self::detect_segment_from_path();
-		if ( $from_path ) {
-			return $from_path;
-		}
+		// Prefer persisted selection over path detection
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
-		if ( $from_cookie ) {
+		if ( $from_cookie === 'consumer' || $from_cookie === 'business' ) {
 			return $from_cookie;
 		}
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			$from_session = (string) WC()->session->get( self::COOKIE, '' );
-			if ( $from_session ) {
+			if ( $from_session === 'consumer' || $from_session === 'business' ) {
 				return $from_session;
 			}
+		}
+		$from_path = self::detect_segment_from_path();
+		if ( $from_path ) {
+			return $from_path;
 		}
 		return '';
 	}
