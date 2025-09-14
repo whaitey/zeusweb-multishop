@@ -170,8 +170,10 @@ class Routes {
 			}
 			$order->save();
 
-			if ( $email ) {
-				Logger::instance()->log( 'info', 'Sending mirrored order custom email', [ 'order_id' => $order->get_id(), 'email' => $email ] );
+			$email_to = $order->get_billing_email();
+			if ( ! $email_to && $email ) { $email_to = $email; }
+			if ( $email_to ) {
+				Logger::instance()->log( 'info', 'Sending mirrored order custom email', [ 'order_id' => $order->get_id(), 'email' => $email_to ] );
 				CustomSender::send_order_keys_email( $order );
 				$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
 				$order->save();
