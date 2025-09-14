@@ -26,17 +26,24 @@ class Enforcer {
 			}
 
 			$allowed_map = array_fill_keys( $allowed, true );
-			$allow_stripe_family = isset( $allowed_map['stripe'] );
+			$stripe_allowed = isset( $allowed_map['stripe'] );
+			$has_base_stripe = isset( $gateways['stripe'] );
 
 			foreach ( $gateways as $id => $g ) {
-				// Handle Stripe family: only show base 'stripe' if allowed; hide all 'stripe_*'
+				// Stripe handling: if 'stripe' is allowed, keep base if present; if base not present, keep stripe_*; if not allowed, hide all stripe family
 				if ( $id === 'stripe' ) {
-					if ( ! $allow_stripe_family ) { unset( $gateways[ $id ] ); }
+					if ( ! $stripe_allowed ) { unset( $gateways[ $id ] ); }
 					continue;
 				}
 				if ( strpos( $id, 'stripe_' ) === 0 ) {
-					// Always hide sub-methods; user controls Stripe as a whole via 'stripe'
-					unset( $gateways[ $id ] );
+					if ( ! $stripe_allowed ) {
+						unset( $gateways[ $id ] );
+						continue;
+					}
+					// If base stripe exists and is allowed, prefer showing only base; otherwise allow sub-methods
+					if ( $has_base_stripe ) {
+						unset( $gateways[ $id ] );
+					}
 					continue;
 				}
 
