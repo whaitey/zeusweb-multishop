@@ -15,6 +15,8 @@ class Manager {
 		add_filter( 'query_vars', [ __CLASS__, 'register_query_vars' ] );
 		add_action( 'init', [ __CLASS__, 'register_rewrites' ] );
 		add_filter( 'request', [ __CLASS__, 'rewrite_request_path' ] );
+		// Ensure cookie follows URL path early, before any output
+		add_action( 'init', [ __CLASS__, 'sync_cookie_from_path_early' ], 0 );
 		add_action( 'template_redirect', [ __CLASS__, 'handle_segment_entry' ], 1 );
 		add_action( 'init', [ __CLASS__, 'maybe_set_segment_from_param' ], 1 );
 		
@@ -93,8 +95,19 @@ class Manager {
 		// Get previous segment from cookie
 		$previous = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		
-		// If segment changed, empty the cart
-		if ( $previous && $previous !== $current ) {
+		// If a switch was detected early, or previous differs, empty the cart once
+		$should_empty = false;
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			$flag = (int) WC()->session->get( '_zw_ms_segment_switched', 0 );
+			if ( $flag ) {
+				$should_empty = true;
+				WC()->session->set( '_zw_ms_segment_switched', 0 );
+			}
+		}
+		if ( ! $should_empty && $previous && $previous !== $current ) {
+			$should_empty = true;
+		}
+		if ( $should_empty ) {
 			if ( function_exists( 'WC' ) && WC()->cart ) {
 				WC()->cart->empty_cart();
 			}
@@ -109,6 +122,23 @@ class Manager {
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			WC()->session->set( self::COOKIE, $current );
 		}
+	}
+
+	/**
+	 * Early in the request lifecycle, align the segment cookie with the URL path
+	 * so navigation under /lakossagi or /uzleti persists the selection.
+	 */
+	public static function sync_cookie_from_path_early(): void {
+		$from_path = self::detect_segment_from_path();
+		if ( ! $from_path ) { return; }
+		$cookie_val = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
+		if ( $cookie_val === $from_path ) { return; }
+		// Mark switch so we empty cart later in template_redirect
+		if ( function_exists( 'WC' ) && WC()->session ) {
+			WC()->session->set( '_zw_ms_segment_switched', 1 );
+		}
+		self::set_segment_cookie( $from_path );
+		$_COOKIE[ self::COOKIE ] = $from_path;
 	}
 
 	public static function maybe_set_segment_from_param(): void {
