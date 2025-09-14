@@ -66,9 +66,8 @@ class SecondaryHooks {
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
-			// Send custom email if custom-only is enabled OR any shortage exists on this order
-			$custom_only = ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' );
-			if ( $custom_only || self::order_has_shortage( $order ) ) {
+			// Send custom email if Woo customer email disabled, custom-only enabled, or any shortage exists
+			if ( CustomSender::should_send_custom_email_now( $order ) || self::order_has_shortage( $order ) ) {
 				CustomSender::send_order_keys_email( $order );
 			}
 		}
