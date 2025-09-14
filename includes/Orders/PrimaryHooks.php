@@ -13,6 +13,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 class PrimaryHooks {
 	public static function init(): void {
 		add_action( 'woocommerce_order_status_processing', [ __CLASS__, 'on_order_paid' ], 10, 2 );
+		add_action( 'woocommerce_payment_complete', [ __CLASS__, 'on_payment_complete' ], 10, 1 );
+	}
+
+	public static function on_payment_complete( $order_id ): void {
+		$order = wc_get_order( $order_id );
+		if ( $order ) {
+			self::on_order_paid( $order_id, $order );
+		}
 	}
 
 	public static function on_order_paid( $order_id, $order ): void {
@@ -20,8 +28,14 @@ class PrimaryHooks {
 		if ( $mode !== 'primary' ) {
 			return;
 		}
+		// Prevent double-processing
+		if ( 'yes' === (string) $order->get_meta( '_zw_ms_allocated' ) ) {
+			return;
+		}
 		try {
 			self::allocate_for_order( $order );
+			$order->update_meta_data( '_zw_ms_allocated', 'yes' );
+			$order->save();
 		} catch ( \Throwable $e ) {
 			Logger::instance()->log( 'error', 'Primary allocation failed', [ 'order_id' => $order_id, 'error' => $e->getMessage() ] );
 		}

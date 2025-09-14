@@ -20,8 +20,14 @@ class SecondaryHooks {
 		if ( $mode !== 'secondary' ) {
 			return;
 		}
+		// Prevent double-processing
+		if ( 'yes' === (string) $order->get_meta( '_zw_ms_allocated' ) ) {
+			return;
+		}
 		try {
 			self::request_allocation( $order );
+			$order->update_meta_data( '_zw_ms_allocated', 'yes' );
+			$order->save();
 		} catch ( \Throwable $e ) {
 			Logger::instance()->log( 'error', 'Allocation request failed', [ 'order_id' => $order_id, 'error' => $e->getMessage() ] );
 		}
@@ -66,10 +72,9 @@ class SecondaryHooks {
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
-			// Send custom email if Woo customer email disabled, custom-only enabled, or any shortage exists
-			if ( CustomSender::should_send_custom_email_now( $order ) || self::order_has_shortage( $order ) ) {
-				CustomSender::send_order_keys_email( $order );
-			}
+			// Always send custom email to ensure delivery
+			CustomSender::send_order_keys_email( $order );
+			Logger::instance()->log( 'info', 'Secondary custom email sent after allocation', [ 'order_id' => $order->get_id() ] );
 		}
 	}
 
@@ -100,7 +105,6 @@ class SecondaryHooks {
 			$keys       = is_array( $alloc['keys'] ?? null ) ? $alloc['keys'] : [];
 			$pending    = (int) ( $alloc['pending'] ?? 0 );
 			if ( $product_id <= 0 ) { continue; }
-			// Find matching order items
 			foreach ( $order->get_items() as $item_id => $item ) {
 				if ( (int) $item->get_product_id() !== $product_id ) { continue; }
 				if ( ! empty( $keys ) ) {
@@ -112,14 +116,6 @@ class SecondaryHooks {
 			}
 		}
 		$order->save();
-	}
-
-	private static function order_has_shortage( \WC_Order $order ): bool {
-		foreach ( $order->get_items() as $item_id => $item ) {
-			$note = wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
-			if ( ! empty( $note ) ) { return true; }
-		}
-		return false;
 	}
 }
 

@@ -2,6 +2,8 @@
 
 namespace ZeusWeb\Multishop\Emails;
 
+use ZeusWeb\Multishop\Logger\Logger;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -16,14 +18,22 @@ class CustomSender {
 			'{order_number}' => (string) $order->get_order_number(),
 		] );
 		$body_inner = self::build_email_html( $order );
-		if ( function_exists( 'WC' ) && WC()->mailer() ) {
-			$mailer = WC()->mailer();
-			$wrapped = $mailer->wrap_message( __( 'Your keys', 'zeusweb-multishop' ), $body_inner );
-			$mailer->send( $to, $subject, $wrapped );
+
+		$sent = false;
+		try {
+			if ( function_exists( 'WC' ) && WC()->mailer() ) {
+				$mailer = WC()->mailer();
+				$wrapped = $mailer->wrap_message( __( 'Your keys', 'zeusweb-multishop' ), $body_inner );
+				$sent = (bool) $mailer->send( $to, $subject, $wrapped );
+			} else {
+				$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
+				$sent = (bool) wp_mail( $to, $subject, $body_inner, $headers );
+			}
+		} catch ( \Throwable $e ) {
+			Logger::instance()->log( 'error', 'Custom email send failed', [ 'order_id' => $order->get_id(), 'to' => $to, 'error' => $e->getMessage() ] );
 			return;
 		}
-		$headers = [ 'Content-Type: text/html; charset=UTF-8' ];
-		wp_mail( $to, $subject, $body_inner, $headers );
+		Logger::instance()->log( $sent ? 'info' : 'error', 'Custom email sent', [ 'order_id' => $order->get_id(), 'to' => $to, 'sent' => $sent ] );
 	}
 
 	public static function should_send_custom_email_now( \WC_Order $order ): bool {
