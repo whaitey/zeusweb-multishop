@@ -56,6 +56,12 @@ class SecondaryHooks {
 	private static function request_allocation( \WC_Order $order ): void {
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
 		if ( ! $primary ) {
+			Logger::instance()->log( 'error', 'Primary URL not set for Secondary allocation', [ 'order_id' => $order->get_id() ] );
+			return;
+		}
+		$primary_secret = (string) get_option( 'zw_ms_primary_secret', '' );
+		if ( ! $primary_secret ) {
+			Logger::instance()->log( 'error', 'Primary shared secret not set on Secondary', [ 'order_id' => $order->get_id() ] );
 			return;
 		}
 		$path   = '/zw-ms/v1/allocate-keys';
@@ -71,8 +77,7 @@ class SecondaryHooks {
 		];
 		$body = wp_json_encode( $body_data );
 
-		$secret = get_option( 'zw_ms_secret' );
-		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, (string) $secret );
+		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $primary_secret );
 
 		$args = [
 			'headers' => [
@@ -89,7 +94,13 @@ class SecondaryHooks {
 		if ( is_wp_error( $response ) ) {
 			throw new \RuntimeException( $response->get_error_message() );
 		}
-		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+		$code = (int) wp_remote_retrieve_response_code( $response );
+		$resp_body = wp_remote_retrieve_body( $response );
+		if ( $code !== 200 ) {
+			Logger::instance()->log( 'error', 'Primary allocation HTTP error', [ 'order_id' => $order->get_id(), 'status' => $code, 'body' => $resp_body ] );
+			return;
+		}
+		$data = json_decode( $resp_body, true );
 		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
 			self::attach_keys_to_order( $order, $data['allocations'] );
 			// Always send custom email to ensure delivery
