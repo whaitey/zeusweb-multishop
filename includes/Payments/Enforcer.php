@@ -20,7 +20,10 @@ class Enforcer {
 			$segment = SegmentManager::is_business() ? 'business' : 'consumer';
 			$allowed = self::get_allowed_gateways_for_segment( $segment );
 			// If no gateways are allowed (no mapping or empty mapping), hide all.
-			if ( empty( $allowed ) ) { return []; }
+			if ( empty( $allowed ) ) {
+				Logger::instance()->log( 'info', 'No gateways allowed for segment; hiding all', [ 'segment' => $segment ] );
+				return [];
+			}
 
 			$allowed_map = array_fill_keys( $allowed, true );
 			$allow_stripe_family = isset( $allowed_map['stripe'] );
@@ -55,7 +58,10 @@ class Enforcer {
 		if ( is_array( $cached ) ) { return $cached; }
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
 		$secret  = (string) get_option( 'zw_ms_primary_secret', '' );
-		if ( ! $primary || ! $secret ) { return []; }
+		if ( ! $primary || ! $secret ) {
+			Logger::instance()->log( 'warning', 'Primary URL or shared secret missing on Secondary; no gateways allowed', [ 'primary_url' => $primary ? 'set' : 'missing', 'secret' => $secret ? 'set' : 'missing' ] );
+			return [];
+		}
 		$site_id = (string) get_option( 'zw_ms_site_id', '' );
 		// Sign ONLY the route path (no query) to match server verify_hmac
 		$unsigned_path = '/zw-ms/v1/payments-config';
@@ -64,7 +70,7 @@ class Enforcer {
 		$nonce = wp_generate_uuid4();
 		$body = '';
 		$signature = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $unsigned_path, $timestamp, $nonce, $body, $secret );
-		$url = rtrim( $primary, '/' ) . '/wp-json' . $unsigned_path . '?site_id=' . rawurlencode( $site_id ) . '&segment=' . rawurlencode( $segment );
+		$url = rtrim( $primary, '/' ) . '/wp-json' . $unsigned_path . '?site_id=' . rawurlencode( $site_id ) . '&segment=' . rawurlencode( $segment ) . '&t=' . rawurlencode( (string) $timestamp );
 		$args = [ 'headers' => [ 'X-ZW-Timestamp' => $timestamp, 'X-ZW-Nonce' => $nonce, 'X-ZW-Signature' => $signature, 'Accept' => 'application/json' ], 'timeout' => 15 ];
 		$response = wp_remote_get( $url, $args );
 		if ( is_wp_error( $response ) ) { return []; }
@@ -77,7 +83,8 @@ class Enforcer {
 		$data = json_decode( $body_json, true );
 		if ( ! is_array( $data ) || ! is_array( $data['allowed'] ?? null ) ) { return []; }
 		$allowed = array_values( array_map( 'strval', $data['allowed'] ) );
-		set_transient( $cache_key, $allowed, 10 * MINUTE_IN_SECONDS );
+		Logger::instance()->log( 'info', 'payments-config allowed gateways', [ 'segment' => $segment, 'allowed' => $allowed ] );
+		set_transient( $cache_key, $allowed, 60 );
 		return $allowed;
 	}
 }
