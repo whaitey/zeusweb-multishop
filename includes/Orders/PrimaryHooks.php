@@ -14,6 +14,27 @@ class PrimaryHooks {
 	public static function init(): void {
 		add_action( 'woocommerce_order_status_processing', [ __CLASS__, 'on_order_paid' ], 10, 2 );
 		add_action( 'woocommerce_payment_complete', [ __CLASS__, 'on_payment_complete' ], 10, 1 );
+		add_action( 'woocommerce_thankyou', [ __CLASS__, 'on_thankyou_fallback' ], 20, 1 );
+	}
+
+	public static function on_thankyou_fallback( $order_id ): void {
+		$mode = get_option( 'zw_ms_mode', 'primary' );
+		if ( $mode !== 'primary' ) { return; }
+		$order = wc_get_order( $order_id );
+		if ( ! $order ) { return; }
+		if ( 'yes' === (string) $order->get_meta( '_zw_ms_custom_email_sent' ) ) { return; }
+		// Send only if keys or shortage meta exist
+		$has_meta = false;
+		foreach ( $order->get_items() as $item_id => $item ) {
+			$keys = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
+			$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
+			if ( $keys !== '' || $shortage !== '' ) { $has_meta = true; break; }
+		}
+		if ( ! $has_meta ) { return; }
+		Logger::instance()->log( 'info', 'Thankyou fallback: sending custom email', [ 'order_id' => $order->get_id() ] );
+		CustomSender::send_order_keys_email( $order );
+		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+		$order->save();
 	}
 
 	public static function on_payment_complete( $order_id ): void {
@@ -60,6 +81,8 @@ class PrimaryHooks {
 		// Always send custom email (ensures delivery irrespective of Woo email state)
 		Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
 		CustomSender::send_order_keys_email( $order );
+		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+		$order->save();
 		Logger::instance()->log( 'info', 'Custom email send attempted', [ 'order_id' => $order->get_id() ] );
 	}
 

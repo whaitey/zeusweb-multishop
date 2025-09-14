@@ -13,6 +13,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 class SecondaryHooks {
 	public static function init(): void {
 		add_action( 'woocommerce_order_status_processing', [ __CLASS__, 'on_order_paid' ], 10, 2 );
+		add_action( 'woocommerce_thankyou', [ __CLASS__, 'on_thankyou_fallback' ], 20, 1 );
+	}
+
+	public static function on_thankyou_fallback( $order_id ): void {
+		$mode = get_option( 'zw_ms_mode', 'primary' );
+		if ( $mode !== 'secondary' ) { return; }
+		$order = wc_get_order( $order_id );
+		if ( ! $order ) { return; }
+		if ( 'yes' === (string) $order->get_meta( '_zw_ms_custom_email_sent' ) ) { return; }
+		$has_meta = false;
+		foreach ( $order->get_items() as $item_id => $item ) {
+			$keys = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
+			$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
+			if ( $keys !== '' || $shortage !== '' ) { $has_meta = true; break; }
+		}
+		if ( ! $has_meta ) { return; }
+		Logger::instance()->log( 'info', 'Thankyou fallback (secondary): sending custom email', [ 'order_id' => $order->get_id() ] );
+		CustomSender::send_order_keys_email( $order );
+		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+		$order->save();
 	}
 
 	public static function on_order_paid( $order_id, $order ): void {
@@ -74,6 +94,8 @@ class SecondaryHooks {
 			self::attach_keys_to_order( $order, $data['allocations'] );
 			// Always send custom email to ensure delivery
 			CustomSender::send_order_keys_email( $order );
+			$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+			$order->save();
 			Logger::instance()->log( 'info', 'Secondary custom email sent after allocation', [ 'order_id' => $order->get_id() ] );
 		}
 	}
