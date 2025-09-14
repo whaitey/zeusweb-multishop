@@ -109,7 +109,7 @@ class Manager {
 			}
 		}
 		
-		// If we detected a segment, persist it
+		// If we detected a segment from URL, persist it
 		if ( $new_segment ) {
 			// Get current cookie value
 			$current_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
@@ -189,69 +189,74 @@ class Manager {
 	 * JavaScript fallback for setting cookies when headers are already sent
 	 */
 	public static function js_cookie_setter(): void {
-		// Determine what segment should be set based on current context
-		$segment_to_set = null;
-		
-		// Check URL parameter
-		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
-			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
-			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
-				$segment_to_set = $seg;
+		?>
+		<script type="text/javascript">
+		(function() {
+			var cookieName = '<?php echo esc_js( self::COOKIE ); ?>';
+			
+			// Function to get cookie value
+			function getCookie(name) {
+				var value = '; ' + document.cookie;
+				var parts = value.split('; ' + name + '=');
+				if (parts.length === 2) return parts.pop().split(';').shift();
+				return '';
 			}
-		}
-		
-		// Check path
-		if ( ! $segment_to_set ) {
-			$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
-			$path = strtok( $uri, '?' );
-			if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
-				$segment_to_set = 'consumer';
-			} elseif ( $path && preg_match( '#/(uzleti)(/|$)#', $path ) ) {
-				$segment_to_set = 'business';
+			
+			// Function to set cookie
+			function setCookie(name, value, days) {
+				var expires = new Date();
+				expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+				document.cookie = name + '=' + value + '; expires=' + expires.toUTCString() + '; path=/; SameSite=Lax';
 			}
-		}
-		
-		if ( $segment_to_set ) {
-			?>
-			<script type="text/javascript">
-			(function() {
-				var segmentToSet = '<?php echo esc_js( $segment_to_set ); ?>';
-				var cookieName = '<?php echo esc_js( self::COOKIE ); ?>';
-				
-				// Get current cookie value
-				var currentCookie = '';
-				var cookies = document.cookie.split(';');
-				for (var i = 0; i < cookies.length; i++) {
-					var cookie = cookies[i].trim();
-					if (cookie.indexOf(cookieName + '=') === 0) {
-						currentCookie = cookie.substring(cookieName.length + 1);
-						break;
-					}
+			
+			// Determine what segment should be set based on current context
+			var segmentToSet = null;
+			var currentPath = window.location.pathname;
+			
+			// Check if we're on a segment-specific path
+			if (currentPath.indexOf('/lakossagi') !== -1) {
+				segmentToSet = 'consumer';
+			} else if (currentPath.indexOf('/uzleti') !== -1) {
+				segmentToSet = 'business';
+			}
+			
+			// Check URL parameter
+			var urlParams = new URLSearchParams(window.location.search);
+			if (urlParams.has('zw_ms_set_segment')) {
+				var paramSegment = urlParams.get('zw_ms_set_segment');
+				if (paramSegment === 'consumer' || paramSegment === 'business') {
+					segmentToSet = paramSegment;
 				}
-				
-				// Set cookie if different
+			}
+			
+			// If we detected a segment, set/update the cookie
+			if (segmentToSet) {
+				var currentCookie = getCookie(cookieName);
 				if (currentCookie !== segmentToSet) {
-					var expires = new Date();
-					expires.setTime(expires.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days
-					document.cookie = cookieName + '=' + segmentToSet + '; expires=' + expires.toUTCString() + '; path=/; SameSite=Lax';
-					
-					// If we just set the cookie, reload the page to apply it
+					setCookie(cookieName, segmentToSet, 30);
+					// If switching segments, reload to apply changes
 					if (currentCookie && currentCookie !== segmentToSet) {
-						// Segment changed, reload to apply
 						window.location.reload();
 					}
 				}
-			})();
-			</script>
-			<?php
-		}
+			}
+			
+			// Debug: log current state
+			console.log('Multishop Segment Debug:', {
+				currentPath: currentPath,
+				segmentToSet: segmentToSet,
+				currentCookie: getCookie(cookieName)
+			});
+		})();
+		</script>
+		<?php
 	}
 
 	/**
-	 * Get the current segment
+	 * Get the current segment - SIMPLIFIED LOGIC
 	 */
 	public static function get_current_segment(): string {
-		// 1. Check if we're forcing a segment via URL
+		// 1. Check if we're forcing a segment via URL parameter
 		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
 			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
 			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
@@ -259,7 +264,7 @@ class Manager {
 			}
 		}
 		
-		// 2. Check path
+		// 2. Check if we're on a segment-specific path (this should take priority when on those pages)
 		$uri = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
 		$path = strtok( $uri, '?' );
 		if ( $path && preg_match( '#/(lakossagi)(/|$)#', $path ) ) {
@@ -268,13 +273,13 @@ class Manager {
 			return 'business';
 		}
 		
-		// 3. Check cookie
+		// 3. Use persisted value from cookie (this is what should persist across navigation)
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		if ( in_array( $from_cookie, [ 'consumer', 'business' ], true ) ) {
 			return $from_cookie;
 		}
 		
-		// 4. Check WooCommerce session
+		// 4. Check WooCommerce session as fallback
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			$from_session = (string) WC()->session->get( self::COOKIE, '' );
 			if ( in_array( $from_session, [ 'consumer', 'business' ], true ) ) {
@@ -282,6 +287,7 @@ class Manager {
 			}
 		}
 		
+		// 5. Default to empty (no segment selected)
 		return '';
 	}
 
@@ -318,15 +324,19 @@ class Manager {
 			$session_val = (string) WC()->session->get( self::COOKIE, 'not set' );
 		}
 		
+		// Check JavaScript readable cookie
+		echo '<script>console.log("Cookie from JS:", document.cookie);</script>';
+		
 		echo '<div style="position: fixed; bottom: 10px; right: 10px; background: #333; color: #fff; padding: 10px; z-index: 99999; font-size: 12px; border-radius: 5px;">';
 		echo '<strong>Multishop Debug:</strong><br>';
 		echo 'Current Segment: <strong>' . ( $segment ?: 'none' ) . '</strong><br>';
-		echo 'Cookie: ' . esc_html( $cookie ) . '<br>';
+		echo 'PHP Cookie: ' . esc_html( $cookie ) . '<br>';
 		echo 'WC Session: ' . esc_html( $session_val ) . '<br>';
 		echo 'Query Var: ' . esc_html( $query_var ) . '<br>';
 		echo 'GET Param: ' . esc_html( $param ) . '<br>';
 		echo 'Path Detect: ' . esc_html( $path_detect ) . '<br>';
 		echo 'Headers Sent: ' . ( headers_sent() ? 'yes' : 'no' ) . '<br>';
+		echo '<small>Check console for JS cookie</small>';
 		echo '</div>';
 	}
 }
