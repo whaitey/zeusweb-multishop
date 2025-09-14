@@ -148,6 +148,14 @@ class Routes {
 					$alloc_items[] = [ 'product_id' => (int) $product_id, 'variation_id' => 0, 'quantity' => $quantity ];
 				}
 			}
+			// Ensure totals are calculated so order appears with correct total
+			if ( method_exists( $order, 'calculate_totals' ) ) {
+				$order->calculate_totals();
+			}
+			// Optional: mark payment method for traceability
+			if ( method_exists( $order, 'set_payment_method_title' ) ) {
+				$order->set_payment_method_title( 'Mirrored from Secondary' );
+			}
 			$order->set_status( 'processing' );
 			$order->save();
 
