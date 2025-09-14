@@ -143,7 +143,7 @@ class Manager {
 	}
 
 	public static function get_current_segment(): string {
-		// First check if we're explicitly setting a segment via URL param
+		// 1) Explicit URL param always wins
 		if ( isset( $_GET['zw_ms_set_segment'] ) ) {
 			$seg = sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) );
 			if ( in_array( $seg, [ 'consumer', 'business' ], true ) ) {
@@ -151,19 +151,23 @@ class Manager {
 			}
 		}
 		
-		// Check query var from rewrite rules
+		// 2) Query var from rewrites
 		$segment = get_query_var( self::QUERY_VAR );
 		if ( $segment === 'consumer' || $segment === 'business' ) {
 			return $segment;
 		}
 		
-		// Check cookie (most reliable for persistence)
+		// 3) URL path (/lakossagi or /uzleti) should override persistence
+		$from_path = self::detect_segment_from_path();
+		if ( $from_path ) {
+			return $from_path;
+		}
+		
+		// 4) Persisted cookie/session
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		if ( $from_cookie === 'consumer' || $from_cookie === 'business' ) {
 			return $from_cookie;
 		}
-		
-		// Check WooCommerce session
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			$from_session = (string) WC()->session->get( self::COOKIE, '' );
 			if ( $from_session === 'consumer' || $from_session === 'business' ) {
@@ -171,13 +175,7 @@ class Manager {
 			}
 		}
 		
-		// Fallback to path detection
-		$from_path = self::detect_segment_from_path();
-		if ( $from_path ) {
-			return $from_path;
-		}
-		
-		// Default to empty (no segment selected)
+		// 5) No segment
 		return '';
 	}
 
@@ -209,12 +207,16 @@ class Manager {
 		$segment = self::get_current_segment();
 		$cookie = isset( $_COOKIE[ self::COOKIE ] ) ? $_COOKIE[ self::COOKIE ] : 'not set';
 		$query_var = get_query_var( self::QUERY_VAR ) ?: 'not set';
+		$param = isset( $_GET['zw_ms_set_segment'] ) ? sanitize_text_field( wp_unslash( $_GET['zw_ms_set_segment'] ) ) : 'not set';
+		$path_detect = self::detect_segment_from_path() ?: 'none';
 		
 		echo '<div style="position: fixed; bottom: 10px; right: 10px; background: #333; color: #fff; padding: 10px; z-index: 99999; font-size: 12px; border-radius: 5px;">';
 		echo '<strong>Multishop Debug:</strong><br>';
 		echo 'Current Segment: <strong>' . ( $segment ?: 'none' ) . '</strong><br>';
 		echo 'Cookie: ' . esc_html( $cookie ) . '<br>';
 		echo 'Query Var: ' . esc_html( $query_var ) . '<br>';
+		echo 'GET Param: ' . esc_html( $param ) . '<br>';
+		echo 'Path Detect: ' . esc_html( $path_detect ) . '<br>';
 		echo '</div>';
 	}
 }
