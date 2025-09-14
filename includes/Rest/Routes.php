@@ -103,6 +103,7 @@ class Routes {
 		$params = $request->get_json_params();
 		$site_id = sanitize_text_field( (string) ( $params['site_id'] ?? '' ) );
 		$remote_order_id = sanitize_text_field( (string) ( $params['order_id'] ?? '' ) );
+		$remote_order_number = sanitize_text_field( (string) ( $params['remote_order_number'] ?? '' ) );
 		$segment = sanitize_text_field( (string) ( $params['customer_segment'] ?? '' ) );
 		$email = sanitize_email( (string) ( $params['customer_email'] ?? '' ) );
 		$items_raw = is_array( $params['items'] ?? null ) ? $params['items'] : [];
@@ -111,6 +112,7 @@ class Routes {
 			if ( $email ) { $order->set_billing_email( $email ); }
 			$order->update_meta_data( '_zw_ms_remote_site_id', $site_id );
 			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
+			if ( $remote_order_number !== '' ) { $order->update_meta_data( '_zw_ms_remote_order_number', $remote_order_number ); }
 			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
 			$order->update_meta_data( '_zw_ms_origin_site_code', (string) get_option( 'zw_ms_site_code', '1' ) );
 			$order->update_meta_data( '_zw_ms_mirrored', 'yes' );
@@ -157,7 +159,7 @@ class Routes {
 				$order->save();
 			}
 			Logger::instance()->log( 'info', 'Order mirrored and email attempted', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
-			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id() ], 200 );
+			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id(), 'order_number' => $order->get_order_number() ], 200 );
 		} catch ( \Throwable $e ) {
 			Logger::instance()->log( 'error', 'Mirror order failed', [ 'error' => $e->getMessage(), 'remote_order_id' => $remote_order_id ] );
 			return new WP_REST_Response( [ 'error' => 'mirror_failed' ], 500 );

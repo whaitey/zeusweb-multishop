@@ -13,6 +13,13 @@ class SecondaryHooks {
 	public static function init(): void {
 		add_action( 'woocommerce_order_status_processing', [ __CLASS__, 'on_order_paid' ], 10, 2 );
 		add_action( 'woocommerce_thankyou', [ __CLASS__, 'on_thankyou_notice_only' ], 20, 1 );
+		add_filter( 'woocommerce_order_number', [ __CLASS__, 'maybe_use_primary_order_number' ], 10, 2 );
+	}
+
+	public static function maybe_use_primary_order_number( $order_number, $order ) {
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return $order_number; }
+		$primary_num = (string) $order->get_meta( '_zw_ms_primary_order_number' );
+		return $primary_num !== '' ? $primary_num : $order_number;
 	}
 
 	public static function on_thankyou_notice_only( $order_id ): void {
@@ -56,6 +63,7 @@ class SecondaryHooks {
 		$body_data = [
 			'site_id' => get_option( 'zw_ms_site_id' ),
 			'order_id' => (string) $order->get_id(),
+			'remote_order_number' => (string) $order->get_order_number(),
 			'customer_segment' => SegmentManager::is_business() ? 'business' : 'consumer',
 			'customer_email' => (string) $order->get_billing_email(),
 			'items' => self::build_items_with_skus( $order ),
@@ -84,9 +92,16 @@ class SecondaryHooks {
 			return;
 		}
 		$data = json_decode( $resp_body, true );
-		if ( is_array( $data ) && isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
-			self::attach_keys_to_order( $order, $data['allocations'] );
-			Logger::instance()->log( 'info', 'Secondary attached keys from Primary mirror', [ 'order_id' => $order->get_id() ] );
+		if ( is_array( $data ) ) {
+			$primary_order_number = (string) ( $data['order_number'] ?? '' );
+			if ( $primary_order_number !== '' ) {
+				$order->update_meta_data( '_zw_ms_primary_order_number', $primary_order_number );
+				$order->save();
+			}
+			if ( isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
+				self::attach_keys_to_order( $order, $data['allocations'] );
+				Logger::instance()->log( 'info', 'Secondary attached keys from Primary mirror', [ 'order_id' => $order->get_id() ] );
+			}
 		}
 	}
 

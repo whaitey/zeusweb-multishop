@@ -13,9 +13,13 @@ class CustomSender {
 		$to = $order->get_billing_email();
 		if ( ! $to ) { return; }
 		$subject_tpl = (string) get_option( 'zw_ms_custom_email_subject', 'Your {site_name} order keys (#{order_number})' );
+		$display_order_number = (string) $order->get_meta( '_zw_ms_remote_order_number' );
+		if ( $display_order_number === '' ) {
+			$display_order_number = (string) $order->get_order_number();
+		}
 		$subject = strtr( $subject_tpl, [
 			'{site_name}' => wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
-			'{order_number}' => (string) $order->get_order_number(),
+			'{order_number}' => $display_order_number,
 		] );
 		$body_inner = self::build_email_html( $order );
 
