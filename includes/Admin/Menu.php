@@ -13,6 +13,8 @@ class Menu {
 		add_action( 'admin_menu', [ __CLASS__, 'register_menu' ] );
 		add_action( 'admin_init', [ __CLASS__, 'register_settings' ] );
 		add_action( 'admin_bar_menu', [ __CLASS__, 'add_adminbar_segment_switch' ], 100 );
+		// Handle sync action early so it runs on the same POST request
+		add_action( 'admin_init', [ __CLASS__, 'maybe_handle_sync' ] );
 	}
 
 	public static function register_menu(): void {
@@ -69,16 +71,15 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_tpl_footer_consumer' );
 		register_setting( 'zw_ms', 'zw_ms_tpl_footer_business' );
 		// Single product template override removed; Elementor Theme Builder handles single product.
+	}
 
-		// Handle sync action
-		add_action( 'admin_init', function() {
-			if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
-			if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) { return; }
-			if ( ! isset( $_POST['zw_ms_action'] ) || $_POST['zw_ms_action'] !== 'sync_catalog' ) { return; }
-			if ( ! isset( $_POST['zw_ms_sync_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_sync_nonce'] ) ), 'zw_ms_sync_catalog' ) ) { return; }
-			if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return; }
-			self::handle_sync_catalog();
-		} );
+	public static function maybe_handle_sync(): void {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
+		if ( $_SERVER['REQUEST_METHOD'] !== 'POST' ) { return; }
+		if ( ! isset( $_POST['zw_ms_action'] ) || $_POST['zw_ms_action'] !== 'sync_catalog' ) { return; }
+		if ( ! isset( $_POST['zw_ms_sync_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_sync_nonce'] ) ), 'zw_ms_sync_catalog' ) ) { return; }
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return; }
+		self::handle_sync_catalog();
 	}
 
 	private static function handle_sync_catalog(): void {
