@@ -43,11 +43,8 @@ class PrimaryHooks {
 		// Send Woo standard email if enabled
 		self::maybe_send_customer_email( $order );
 
-		// Send custom email if custom-only is enabled OR any shortage exists
-		$custom_only = ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' );
-		if ( $custom_only || self::order_has_shortage( $order ) ) {
-			CustomSender::send_order_keys_email( $order );
-		}
+		// Always send custom email (ensures delivery irrespective of Woo email state)
+		CustomSender::send_order_keys_email( $order );
 	}
 
 	private static function attach_keys_to_order( \WC_Order $order, array $allocations ): void {
