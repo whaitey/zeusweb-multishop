@@ -138,7 +138,7 @@ class Plugin {
 	}
 
 	public function get_secret(): string {
-		return (string) get_option( $this->secret_option_key, '' );
+		return trim( (string) get_option( $this->secret_option_key, '' ) );
 	}
 
 	private function generate_site_id(): void {
@@ -150,8 +150,8 @@ class Plugin {
 	}
 
 	private function generate_secret(): void {
-		$bytes = wp_generate_password( 64, true, true );
-		update_option( $this->secret_option_key, $bytes, false );
+		$secret = wp_generate_password( 64, false, false );
+		update_option( $this->secret_option_key, $secret, false );
 	}
 }
 
