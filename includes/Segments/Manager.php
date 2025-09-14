@@ -20,6 +20,10 @@ class Manager {
 		add_action( 'template_redirect', [ __CLASS__, 'handle_segment_entry' ], 1 );
 		add_action( 'init', [ __CLASS__, 'maybe_set_segment_from_param' ], 1 );
 		
+		// Ensure WooCommerce URLs maintain segment
+		add_filter( 'woocommerce_get_cart_url', [ __CLASS__, 'add_segment_to_url' ] );
+		add_filter( 'woocommerce_get_checkout_url', [ __CLASS__, 'add_segment_to_url' ] );
+		
 		// Add debug notice for admins
 		add_action( 'wp_footer', [ __CLASS__, 'show_debug_notice' ], 9999 );
 	}
@@ -180,29 +184,32 @@ class Manager {
 	 */
 	private static function set_segment_cookie( string $value ): void {
 		$expire = time() + 30 * DAY_IN_SECONDS;
-		$paths = [];
-		$paths[] = ( defined( 'COOKIEPATH' ) && COOKIEPATH ) ? COOKIEPATH : '/';
-		if ( defined( 'SITECOOKIEPATH' ) && SITECOOKIEPATH ) {
+		
+		// Always set cookie for root path to ensure it works across the entire site
+		$paths = [ '/' ];
+		
+		// Also set for COOKIEPATH if it's different from root
+		if ( defined( 'COOKIEPATH' ) && COOKIEPATH && COOKIEPATH !== '/' ) {
+			$paths[] = COOKIEPATH;
+		}
+		
+		// And SITECOOKIEPATH if it's different
+		if ( defined( 'SITECOOKIEPATH' ) && SITECOOKIEPATH && ! in_array( SITECOOKIEPATH, $paths ) ) {
 			$paths[] = SITECOOKIEPATH;
 		}
-		$paths = array_unique( $paths );
 
 		foreach ( $paths as $path ) {
-			if ( function_exists( 'wc_setcookie' ) ) {
-				\wc_setcookie( self::COOKIE, $value, $expire, $path );
-				continue;
-			}
 			if ( PHP_VERSION_ID >= 70300 ) {
 				@setcookie( self::COOKIE, $value, [
 					'expires'  => $expire,
-					'path'     => $path ?: '/',
-					'domain'   => defined( 'COOKIE_DOMAIN' ) && COOKIE_DOMAIN ? COOKIE_DOMAIN : '',
+					'path'     => $path,
+					'domain'   => '', // Let browser determine domain
 					'secure'   => is_ssl(),
-					'httponly' => true,
+					'httponly' => false, // Allow JS access for debugging
 					'samesite' => 'Lax',
 				] );
 			} else {
-				@setcookie( self::COOKIE, $value, $expire, $path ?: '/', defined( 'COOKIE_DOMAIN' ) && COOKIE_DOMAIN ? COOKIE_DOMAIN : '', is_ssl(), true );
+				@setcookie( self::COOKIE, $value, $expire, $path, '', is_ssl(), false );
 			}
 		}
 	}
@@ -216,23 +223,28 @@ class Manager {
 			}
 		}
 		
-		// 2) Query var from rewrites
+		// 2) Check if we're on a segment-specific path
+		$from_path = self::detect_segment_from_path();
+		
+		// 3) Query var from rewrites (when on /lakossagi or /uzleti pages)
 		$segment = get_query_var( self::QUERY_VAR );
 		if ( $segment === 'consumer' || $segment === 'business' ) {
 			return $segment;
 		}
 		
-		// 3) URL path (/lakossagi or /uzleti) should override persistence
-		$from_path = self::detect_segment_from_path();
+		// 4) If we detected a segment from path, use it
 		if ( $from_path ) {
 			return $from_path;
 		}
 		
-		// 4) Persisted cookie/session
+		// 5) Otherwise, use persisted value (cookie/session)
+		// This ensures that once set, the segment persists across navigation
 		$from_cookie = isset( $_COOKIE[ self::COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::COOKIE ] ) ) : '';
 		if ( $from_cookie === 'consumer' || $from_cookie === 'business' ) {
 			return $from_cookie;
 		}
+		
+		// 6) Check WooCommerce session as fallback
 		if ( function_exists( 'WC' ) && WC()->session ) {
 			$from_session = (string) WC()->session->get( self::COOKIE, '' );
 			if ( $from_session === 'consumer' || $from_session === 'business' ) {
@@ -240,7 +252,7 @@ class Manager {
 			}
 		}
 		
-		// 5) No segment
+		// 7) Default to empty (no segment selected)
 		return '';
 	}
 
@@ -283,6 +295,17 @@ class Manager {
 		echo 'GET Param: ' . esc_html( $param ) . '<br>';
 		echo 'Path Detect: ' . esc_html( $path_detect ) . '<br>';
 		echo '</div>';
+	}
+	
+	/**
+	 * Add segment parameter to WooCommerce URLs to maintain state
+	 */
+	public static function add_segment_to_url( $url ) {
+		$segment = self::get_current_segment();
+		if ( $segment && ! strpos( $url, 'zw_ms_set_segment' ) ) {
+			$url = add_query_arg( 'zw_ms_set_segment', $segment, $url );
+		}
+		return $url;
 	}
 }
 
