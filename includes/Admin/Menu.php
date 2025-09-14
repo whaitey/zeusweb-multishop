@@ -82,6 +82,19 @@ class Menu {
 		self::handle_sync_catalog();
 	}
 
+	private static function media_sideload_image_to_attachment( string $image_url, int $post_id ): ?int {
+		if ( ! function_exists( 'media_sideload_image' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+			require_once ABSPATH . 'wp-admin/includes/file.php';
+			require_once ABSPATH . 'wp-admin/includes/image.php';
+		}
+		$att_id = 0;
+		$media = media_sideload_image( $image_url, $post_id, null, 'id' );
+		if ( is_wp_error( $media ) ) { return null; }
+		$att_id = (int) $media;
+		return $att_id ?: null;
+	}
+
 	private static function handle_sync_catalog(): void {
 		$primary = (string) get_option( 'zw_ms_primary_url', '' );
 		$primary_secret  = (string) get_option( 'zw_ms_primary_secret', '' );
@@ -126,52 +139,50 @@ class Menu {
 			$sku = trim( (string) ( $row['sku'] ?? '' ) );
 			if ( $sku === '' ) { $skipped++; continue; }
 			$title = (string) ( $row['title'] ?? $sku );
+			$type  = (string) ( $row['type'] ?? 'simple' );
 			$price = isset( $row['price'] ) ? (float) $row['price'] : 0;
 			$business_price = isset( $row['business_price'] ) ? (float) $row['business_price'] : null;
 			$custom_email = (string) ( $row['custom_email'] ?? '' );
+			$image = (string) ( $row['image'] ?? '' );
 
 			// Find by SKU
 			$product_id = wc_get_product_id_by_sku( $sku );
-			if ( $product_id ) {
-				// Update existing
-				wp_update_post( [ 'ID' => $product_id, 'post_title' => $title ] );
-				$product = wc_get_product( $product_id );
-				if ( $product ) {
-					$product->set_regular_price( (string) $price );
-					$product->save();
-					if ( $business_price !== null ) {
-						update_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, (string) $business_price );
-					} else {
-						delete_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE );
-					}
-					update_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, $custom_email );
-				}
-				$updated++;
-			} else {
-				// Create new simple product
+			$creating = false;
+			if ( ! $product_id ) {
 				$new_id = wp_insert_post( [
 					'post_type' => 'product',
 					'post_status' => 'publish',
 					'post_title' => $title,
 				] );
-				if ( $new_id && ! is_wp_error( $new_id ) ) {
-					update_post_meta( $new_id, '_sku', $sku );
-					$product = wc_get_product( $new_id );
-					if ( $product ) {
-						$product->set_regular_price( (string) $price );
-						$product->save();
-					}
-					if ( $business_price !== null ) {
-						update_post_meta( $new_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, (string) $business_price );
-					}
-					if ( $custom_email !== '' ) {
-						update_post_meta( $new_id, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, $custom_email );
-					}
-					$created++;
-				} else {
-					$skipped++;
-				}
+				if ( ! $new_id || is_wp_error( $new_id ) ) { $skipped++; continue; }
+				$product_id = (int) $new_id;
+				update_post_meta( $product_id, '_sku', $sku );
+				$creating = true;
 			}
+
+			$product = wc_get_product( $product_id );
+			if ( $product ) {
+				// Set type: for bundles we at least keep a simple container (full child mapping TBD)
+				if ( method_exists( $product, 'set_props' ) ) {
+					// For simple sync, we keep type as-is; bundle specifics will be extended later.
+				}
+				$product->set_regular_price( (string) $price );
+				$product->save();
+			}
+			if ( $business_price !== null ) {
+				update_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, (string) $business_price );
+			} else {
+				delete_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE );
+			}
+			update_post_meta( $product_id, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, $custom_email );
+
+			// Featured image sideload
+			if ( $image ) {
+				$att = self::media_sideload_image_to_attachment( $image, $product_id );
+				if ( $att ) { set_post_thumbnail( $product_id, $att ); }
+			}
+
+			if ( $creating ) { $created++; } else { $updated++; }
 		}
 		add_settings_error( 'zw_ms', 'sync_done', sprintf( __( 'Catalog sync complete. Created: %d, Updated: %d, Skipped: %d', 'zeusweb-multishop' ), $created, $updated, $skipped ), 'updated' );
 	}

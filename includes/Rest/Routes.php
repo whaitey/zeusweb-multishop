@@ -82,17 +82,21 @@ class Routes {
 			$pid = get_the_ID();
 			$product = function_exists( 'wc_get_product' ) ? wc_get_product( $pid ) : null;
 			if ( ! $product ) { continue; }
-			if ( method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' ) ) { continue; }
 			$sku = (string) $product->get_sku();
+			$type = method_exists( $product, 'get_type' ) ? (string) $product->get_type() : 'simple';
 			$regular = (float) wc_get_price_to_display( $product );
 			$business = (string) get_post_meta( $pid, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, true );
 			$custom_email = (string) get_post_meta( $pid, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, true );
+			$image_id = get_post_thumbnail_id( $pid );
+			$image_url = $image_id ? (string) wp_get_attachment_url( $image_id ) : '';
 			$items[] = [
 				'sku' => $sku,
 				'title' => get_the_title( $pid ),
+				'type' => $type,
 				'price' => $regular,
 				'business_price' => $business === '' ? null : (float) $business,
 				'custom_email' => $custom_email,
+				'image' => $image_url,
 			];
 		}
 		wp_reset_postdata();
