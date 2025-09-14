@@ -110,6 +110,12 @@ class Manager {
 				if ( function_exists( 'WC' ) && WC()->session ) {
 					WC()->session->set( self::COOKIE, $seg );
 				}
+				// Redirect to the same URL without the param so the new segment applies consistently
+				$target = remove_query_arg( [ 'zw_ms_set_segment' ] );
+				if ( ! headers_sent() ) {
+					wp_safe_redirect( $target );
+					exit;
+				}
 			}
 		}
 	}
