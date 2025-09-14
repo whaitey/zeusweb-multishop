@@ -26,6 +26,15 @@ class CDKeys {
 	}
 
 	private static function render_manage_product( int $product_id ): void {
+		// Do not allow managing keys on bundle containers
+		$product = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+		if ( $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' ) ) {
+			?>
+			<p><?php esc_html_e( 'This is a product bundle. Bundles inherit keys from their child products. Manage keys on the individual child products instead.', 'zeusweb-multishop' ); ?></p>
+			<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=zw-ms-keys' ) ); ?>" class="button">&larr; <?php esc_html_e( 'Back to products', 'zeusweb-multishop' ); ?></a></p>
+			<?php
+			return;
+		}
 		self::render_stats( $product_id );
 		self::render_available_keys( $product_id );
 		?>
@@ -54,6 +63,14 @@ class CDKeys {
 			'posts_per_page' => $per_page,
 			'paged'          => $paged,
 			'post_status'    => [ 'publish' ],
+			'tax_query'      => [
+				[
+					'taxonomy' => 'product_type',
+					'field'    => 'slug',
+					'terms'    => [ 'bundle' ],
+					'operator' => 'NOT IN',
+				],
+			],
 		];
 		$q = new \WP_Query( $args );
 		?>
