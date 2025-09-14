@@ -65,6 +65,11 @@ class PrimaryHooks {
 	private static function allocate_for_order( \WC_Order $order ): void {
 		$items = [];
 		foreach ( $order->get_items() as $item ) {
+			$product = $item->get_product();
+			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+			if ( $is_bundle_container ) {
+				continue; // skip bundle parent; children will be separate line items
+			}
 			$items[] = [
 				'product_id'   => (int) $item->get_product_id(),
 				'variation_id' => (int) $item->get_variation_id(),
