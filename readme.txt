@@ -4,7 +4,7 @@ Tags: woocommerce, multishop, cd-keys, elementor
 Requires at least: 6.2
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.2.14
+Stable tag: 0.2.15
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -62,6 +62,9 @@ This plugin enables a central Primary shop to control catalog, pricing (includin
 
 = 0.2.14 =
 * Fix: Gate CD Keys submenu to Primary sites only
+
+= 0.2.15 =
+* Fix: Isolate Blacklist settings save to avoid resetting other options
 
 = 0.1.0 =
 * Initial scaffolding and bootstrap.
