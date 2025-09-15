@@ -63,6 +63,7 @@ class Menu {
 		// General settings
 		register_setting( 'zw_ms', 'zw_ms_mode' );
 		register_setting( 'zw_ms', 'zw_ms_primary_url' );
+		register_setting( 'zw_ms', 'zw_ms_site_code' );
 		// Do NOT register generated identifiers; prevents WP settings save from resetting them
 		// register_setting( 'zw_ms', 'zw_ms_site_id' );
 		// register_setting( 'zw_ms', 'zw_ms_secret' );
@@ -214,6 +215,13 @@ class Menu {
 				<?php settings_fields( 'zw_ms' ); ?>
 				<table class="form-table" role="presentation">
 					<tbody>
+						<tr>
+							<th scope="row"><?php esc_html_e( 'Unique order identifier (prefix)', 'zeusweb-multishop' ); ?></th>
+							<td>
+								<input type="text" class="regular-text" name="zw_ms_site_code" value="<?php echo esc_attr( get_option( 'zw_ms_site_code', '1' ) ); ?>" maxlength="16" />
+								<p class="description"><?php esc_html_e( 'Set the alphanumeric prefix for order numbers on this site. Used as identifier across mirrored orders.', 'zeusweb-multishop' ); ?></p>
+							</td>
+						</tr>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'Mode', 'zeusweb-multishop' ); ?></th>
 							<td>

@@ -4,7 +4,7 @@ Tags: woocommerce, multishop, cd-keys, elementor
 Requires at least: 6.2
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.2.03
+Stable tag: 0.2.04
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,10 @@ This plugin enables a central Primary shop to control catalog, pricing (includin
 = 0.2.03 =
 * Change: Require keys for all non-bundle items before sending emails
 * Fix: Use remote order number on primary for mirrored orders
+
+= 0.2.04 =
+* Feature: Setting for unique order identifier prefix (`zw_ms_site_code`)
+* Improvement: Secondary includes `site_code` in mirror payload; primary uses it for order numbers
 
 = 0.1.0 =
 * Initial scaffolding and bootstrap.

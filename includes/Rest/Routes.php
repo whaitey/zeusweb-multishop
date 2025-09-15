@@ -66,6 +66,7 @@ class Routes {
 	public static function allocate_keys( WP_REST_Request $request ) {
 		$params  = $request->get_json_params();
 		$site_id = sanitize_text_field( (string) ( $params['site_id'] ?? '' ) );
+		$site_code = sanitize_text_field( (string) ( $params['site_code'] ?? '' ) );
 		$order_id = sanitize_text_field( (string) ( $params['order_id'] ?? '' ) );
 		$items   = is_array( $params['items'] ?? null ) ? $params['items'] : [];
 		$alloc   = KeysService::allocate_for_items( $site_id, $order_id, $items );
@@ -132,7 +133,7 @@ class Routes {
 			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
 			if ( $remote_order_number !== '' ) { $order->update_meta_data( '_zw_ms_remote_order_number', $remote_order_number ); }
 			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
-			$order->update_meta_data( '_zw_ms_origin_site_code', (string) get_option( 'zw_ms_site_code', '1' ) );
+			$order->update_meta_data( '_zw_ms_origin_site_code', $site_code !== '' ? $site_code : (string) get_option( 'zw_ms_site_code', '1' ) );
 			$order->update_meta_data( '_zw_ms_mirrored', 'yes' );
 			$order->update_meta_data( '_zw_ms_force_custom_email', 'yes' );
 

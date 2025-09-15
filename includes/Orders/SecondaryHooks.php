@@ -49,6 +49,7 @@ class SecondaryHooks {
 		$primary_secret = (string) get_option( 'zw_ms_primary_secret', '' );
 		$payload = [
 			'site_id' => get_option( 'zw_ms_site_id' ),
+			'site_code' => (string) get_option( 'zw_ms_site_code', '1' ),
 			'order_id' => (string) $order->get_id(),
 			'remote_order_number' => (string) $order->get_order_number(),
 			'customer_segment' => SegmentManager::is_business() ? 'business' : 'consumer',
