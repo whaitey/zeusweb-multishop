@@ -82,10 +82,21 @@ class PrimaryHooks {
 		$alloc   = KeysService::allocate_for_items( $site_id, (string) $order->get_id(), $items );
 		self::attach_keys_to_order( $order, $alloc );
 
+		// Gate emails: only send when at least one key is present
+		$has_keys = false;
+		foreach ( $order->get_items() as $item_id => $item ) {
+			$keys_val = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
+			if ( $keys_val !== '' ) { $has_keys = true; break; }
+		}
+		if ( ! $has_keys ) {
+			Logger::instance()->log( 'info', 'Skipping customer emails (no keys yet)', [ 'order_id' => $order->get_id() ] );
+			return;
+		}
+
 		// Send Woo standard email if enabled
 		self::maybe_send_customer_email( $order );
 
-		// Always send custom email (ensures delivery irrespective of Woo email state)
+		// Send custom email with keys
 		Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
 		CustomSender::send_order_keys_email( $order );
 		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
