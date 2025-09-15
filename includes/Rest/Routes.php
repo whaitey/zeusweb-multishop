@@ -132,7 +132,7 @@ class Routes {
 			$order->update_meta_data( '_zw_ms_remote_site_id', $site_id );
 			$order->update_meta_data( '_zw_ms_remote_order_id', $remote_order_id );
 			if ( $remote_order_number !== '' ) { $order->update_meta_data( '_zw_ms_remote_order_number', $remote_order_number ); }
-			$order->update_meta_data( '_zw_ms_remote_segment', $segment );
+			$order->update_meta_data( '_zw_ms_remote_segment', in_array( $segment, [ 'consumer', 'business' ], true ) ? $segment : 'consumer' );
 			$order->update_meta_data( '_zw_ms_origin_site_code', $site_code !== '' ? $site_code : (string) get_option( 'zw_ms_site_code', '1' ) );
 			$order->update_meta_data( '_zw_ms_mirrored', 'yes' );
 			$order->update_meta_data( '_zw_ms_force_custom_email', 'yes' );

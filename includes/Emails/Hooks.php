@@ -15,6 +15,9 @@ class Hooks {
 	public static function init(): void {
 		add_action( 'woocommerce_email_order_meta', [ __CLASS__, 'append_product_custom_emails' ], 20, 3 );
 		add_action( 'woocommerce_order_item_meta_end', [ __CLASS__, 'render_keys_in_emails' ], 10, 3 );
+		// Prevent Woo default emails until keys are ready (or when custom-only is enabled)
+		add_filter( 'woocommerce_email_enabled_customer_processing_order', [ __CLASS__, 'maybe_disable_customer_email' ], 10, 2 );
+		add_filter( 'woocommerce_email_enabled_customer_completed_order', [ __CLASS__, 'maybe_disable_customer_email' ], 10, 2 );
 	}
 
 	public static function append_product_custom_emails( $order, $sent_to_admin, $plain_text ): void {
@@ -77,6 +80,31 @@ class Hooks {
 		$replacements['{keys_html}'] = $keys_html;
 		$processed = strtr( $template, $replacements );
 		return wp_kses_post( $processed );
+	}
+
+	/**
+	 * Conditionally disable WooCommerce customer emails to avoid a first email without keys.
+	 */
+	public static function maybe_disable_customer_email( bool $enabled, $order ): bool {
+		try {
+			if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) { return false; }
+			if ( ! $order || ! is_a( $order, 'WC_Order' ) ) { return $enabled; }
+			// Mirrored orders explicitly prefer custom email
+			$force_custom = (string) $order->get_meta( '_zw_ms_force_custom_email' );
+			if ( $force_custom === 'yes' ) { return false; }
+			// Only send Woo emails when all non-bundle items have keys
+			$all_have_keys = true;
+			foreach ( $order->get_items() as $item_id => $item ) {
+				$product = $item->get_product();
+				$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+				if ( $is_bundle_container ) { continue; }
+				$kv = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
+				if ( $kv === '' ) { $all_have_keys = false; break; }
+			}
+			return $all_have_keys ? $enabled : false;
+		} catch ( \Throwable $e ) {
+			return $enabled;
+		}
 	}
 }
 
