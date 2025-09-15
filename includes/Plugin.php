@@ -129,6 +129,30 @@ class Plugin {
 			}
 		} );
 
+		// UI: Add IP filter input on legacy Orders list (CPT screen)
+		add_action( 'restrict_manage_posts', function(): void {
+			if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
+			global $typenow;
+			if ( $typenow !== 'shop_order' ) { return; }
+			$val = isset( $_GET['_shop_order_ip'] ) ? (string) $_GET['_shop_order_ip'] : '';
+			echo '<input type="text" name="_shop_order_ip" class="regular-text" style="max-width:180px;margin-right:6px;" placeholder="' . esc_attr__( 'IP address', 'zeusweb-multishop' ) . '" value="' . esc_attr( $val ) . '" />';
+			echo '<input type="submit" class="button" value="' . esc_attr__( 'Filter by IP', 'zeusweb-multishop' ) . '" />';
+		} );
+
+		// UI: Add IP filter small form on HPOS Orders page header
+		add_action( 'admin_notices', function(): void {
+			if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
+			if ( ! isset( $_GET['page'] ) || $_GET['page'] !== 'wc-orders' ) { return; }
+			$val = isset( $_GET['_shop_order_ip'] ) ? (string) $_GET['_shop_order_ip'] : '';
+			echo '<div class="notice" style="padding:8px 12px;display:flex;align-items:center;gap:6px;">';
+			echo '<form method="get" action="' . esc_url( admin_url( 'admin.php' ) ) . '" style="margin:0;">';
+			echo '<input type="hidden" name="page" value="wc-orders" />';
+			echo '<input type="text" name="_shop_order_ip" class="regular-text" style="max-width:200px;margin-right:6px;" placeholder="' . esc_attr__( 'IP address', 'zeusweb-multishop' ) . '" value="' . esc_attr( $val ) . '" />';
+			echo '<button type="submit" class="button">' . esc_html__( 'Filter by IP', 'zeusweb-multishop' ) . '</button>';
+			echo '</form>';
+			echo '</div>';
+		} );
+
 		// Enforce Elementor Canvas template site-wide (per user request)
 		CanvasEnforcer::init();
 		ElementorRenderer::init();
