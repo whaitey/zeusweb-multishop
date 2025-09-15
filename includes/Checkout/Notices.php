@@ -13,6 +13,9 @@ class Notices {
 		// Business-only extra fields
 		add_filter( 'woocommerce_checkout_fields', [ __CLASS__, 'maybe_add_business_fields' ] );
 		add_action( 'woocommerce_after_checkout_validation', [ __CLASS__, 'maybe_validate_business_fields' ], 10, 2 );
+		// Ensure fields render on classic checkout and values are saved
+		add_action( 'woocommerce_after_checkout_billing_form', [ __CLASS__, 'render_business_fields' ] );
+		add_action( 'woocommerce_checkout_update_order_meta', [ __CLASS__, 'save_business_fields' ], 10, 2 );
 	}
 
 	public static function maybe_show_shortage_notice( $order_id ): void {
@@ -68,6 +71,39 @@ class Notices {
 		}
 		if ( $vat === '' ) {
 			wc_add_notice( __( 'VAT Number is required for business orders.', 'zeusweb-multishop' ), 'error' );
+		}
+	}
+
+	public static function render_business_fields( $checkout ): void {
+		if ( method_exists( '\\ZeusWeb\\Multishop\\Segments\\Manager', 'is_business' ) && ! \ZeusWeb\Multishop\Segments\Manager::is_business() ) {
+			return;
+		}
+		echo '<div class="zw-ms-business-fields">';
+		if ( function_exists( 'woocommerce_form_field' ) ) {
+			woocommerce_form_field( 'billing_company', [
+				'type'        => 'text',
+				'label'       => __( 'Company name', 'zeusweb-multishop' ),
+				'required'    => true,
+				'class'       => [ 'form-row-wide' ],
+			], $checkout->get_value( 'billing_company' ) );
+			woocommerce_form_field( 'billing_vat_number', [
+				'type'        => 'text',
+				'label'       => __( 'VAT Number', 'zeusweb-multishop' ),
+				'placeholder' => '',
+				'required'    => true,
+				'class'       => [ 'form-row-wide' ],
+			], $checkout->get_value( 'billing_vat_number' ) );
+		}
+		echo '</div>';
+	}
+
+	public static function save_business_fields( $order_id, $data ): void {
+		if ( method_exists( '\\ZeusWeb\\Multishop\\Segments\\Manager', 'is_business' ) && ! \ZeusWeb\Multishop\Segments\Manager::is_business() ) {
+			return;
+		}
+		$vat = isset( $_POST['billing_vat_number'] ) ? sanitize_text_field( wp_unslash( $_POST['billing_vat_number'] ) ) : '';
+		if ( $vat !== '' ) {
+			update_post_meta( $order_id, '_billing_vat_number', $vat );
 		}
 	}
 }
