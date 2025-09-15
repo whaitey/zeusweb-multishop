@@ -124,7 +124,10 @@ class Plugin {
 			return $args;
 		} );
 		add_action( 'admin_menu', function() {
-			add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );
+			$plugin = Plugin::instance();
+			if ( $plugin->is_primary() ) {
+				add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );
+			}
 		} );
 
 		// UI: Add IP filter input on legacy Orders list (CPT screen)
