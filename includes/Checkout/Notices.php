@@ -39,8 +39,8 @@ class Notices {
 	}
 
 	public static function enforce_blacklist( $data, $errors ): void {
-		// Only enforce on frontend checkout; never for admins or in admin
-		if ( is_admin() || current_user_can( 'manage_options' ) || current_user_can( 'manage_woocommerce' ) ) { return; }
+		// Only enforce on frontend checkout; still applies to admins on frontend
+		if ( is_admin() ) { return; }
 		if ( is_wp_error( $errors ) ) { return; }
 		$blocked_ips_raw = (string) get_option( 'zw_ms_blacklist_ips', '' );
 		$blocked_emails_raw = (string) get_option( 'zw_ms_blacklist_emails', '' );
