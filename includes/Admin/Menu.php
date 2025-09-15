@@ -70,9 +70,9 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
         register_setting( 'zw_ms', 'zw_ms_enable_custom_email_only' );
         register_setting( 'zw_ms', 'zw_ms_custom_email_subject' );
-		// Blacklist storage (CSV lines)
-		register_setting( 'zw_ms', 'zw_ms_blacklist_ips' );
-		register_setting( 'zw_ms', 'zw_ms_blacklist_emails' );
+		// Blacklist storage in separate group to avoid overwriting other settings on save
+		register_setting( 'zw_ms_blacklist', 'zw_ms_blacklist_ips' );
+		register_setting( 'zw_ms_blacklist', 'zw_ms_blacklist_emails' );
 
 		// Elementor template IDs
 		register_setting( 'zw_ms', 'zw_ms_tpl_header_consumer' );
@@ -214,7 +214,7 @@ class Menu {
 			<h1><?php echo esc_html__( 'ZeusWeb Multishop Settings', 'zeusweb-multishop' ); ?></h1>
 			<?php settings_errors( 'zw_ms' ); settings_errors(); ?>
 			<form method="post" action="options.php">
-				<?php settings_fields( 'zw_ms' ); ?>
+				<?php settings_fields( 'zw_ms_blacklist' ); ?>
 				<table class="form-table" role="presentation">
 					<tbody>
 						<tr>
