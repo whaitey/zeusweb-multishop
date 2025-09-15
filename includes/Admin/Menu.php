@@ -214,7 +214,7 @@ class Menu {
 			<h1><?php echo esc_html__( 'ZeusWeb Multishop Settings', 'zeusweb-multishop' ); ?></h1>
 			<?php settings_errors( 'zw_ms' ); settings_errors(); ?>
 			<form method="post" action="options.php">
-				<?php settings_fields( 'zw_ms_blacklist' ); ?>
+				<?php settings_fields( 'zw_ms' ); ?>
 				<table class="form-table" role="presentation">
 					<tbody>
 						<tr>
@@ -244,11 +244,6 @@ class Menu {
 							<td>
 								<code><?php echo esc_html( $plugin->get_secret() ); ?></code>
 								<p class="description"><?php esc_html_e( 'Copy this to Secondary sites as the "Primary shared secret" to enable sync.', 'zeusweb-multishop' ); ?></p>
-								<form method="post" style="margin-top:8px;">
-									<?php wp_nonce_field( 'zw_ms_regen_secret', 'zw_ms_regen_nonce' ); ?>
-									<input type="hidden" name="zw_ms_action" value="regen_secret" />
-									<button type="submit" class="button button-secondary" onclick="return confirm('Regenerate secret? You must update Secondary settings afterwards.');"><?php esc_html_e( 'Regenerate secret', 'zeusweb-multishop' ); ?></button>
-								</form>
 							</td>
 						</tr>
 						<?php endif; ?>
@@ -309,6 +304,14 @@ class Menu {
 					<p><button class="button button-primary" name="zw_ms_action" value="sync_catalog"><?php esc_html_e( 'Sync Catalog from Primary', 'zeusweb-multishop' ); ?></button></p>
 				</form>
 			<?php endif; ?>
+			<?php if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) : ?>
+				<hr />
+				<form method="post">
+					<?php wp_nonce_field( 'zw_ms_regen_secret', 'zw_ms_regen_nonce' ); ?>
+					<input type="hidden" name="zw_ms_action" value="regen_secret" />
+					<p><button type="submit" class="button button-secondary" onclick="return confirm('Regenerate secret? You must update Secondary settings afterwards.');"><?php esc_html_e( 'Regenerate secret', 'zeusweb-multishop' ); ?></button></p>
+				</form>
+			<?php endif; ?>
 		</div>
 		<?php
 	}
@@ -362,7 +365,7 @@ class Menu {
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Blacklist', 'zeusweb-multishop' ); ?></h1>
 			<form method="post" action="options.php">
-				<?php settings_fields( 'zw_ms' ); ?>
+				<?php settings_fields( 'zw_ms_blacklist' ); ?>
 				<table class="form-table" role="presentation">
 					<tbody>
 						<tr>
