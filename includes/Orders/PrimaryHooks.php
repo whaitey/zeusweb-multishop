@@ -57,6 +57,9 @@ class PrimaryHooks {
 		if ( 'yes' === (string) $order->get_meta( '_zw_ms_allocated' ) ) {
 			return;
 		}
+		// Persist segment for primary-origin orders so admin list shows correctly
+		$seg = \ZeusWeb\Multishop\Segments\Manager::is_business() ? 'business' : 'consumer';
+		$order->update_meta_data( '_zw_ms_remote_segment', $seg );
 		try {
 			self::allocate_for_order( $order );
 			$order->update_meta_data( '_zw_ms_allocated', 'yes' );
