@@ -32,7 +32,7 @@ class Menu {
 		add_submenu_page( 'zw-ms', __( 'Payments', 'zeusweb-multishop' ), __( 'Payments', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-payments', [ \ZeusWeb\Multishop\Admin\Payments::class, 'render_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Sites', 'zeusweb-multishop' ), __( 'Sites', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-sites', [ __CLASS__, 'render_sites_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Logs', 'zeusweb-multishop' ), __( 'Logs', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-logs', [ __CLASS__, 'render_logs_page' ] );
-		add_submenu_page( 'zw-ms', __( 'Blacklist', 'zeusweb-multishop' ), __( 'Blacklist', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-blacklist', [ __CLASS__, 'render_blacklist_page' ] );
+		// Blacklist removed
 
 	}
 
@@ -70,9 +70,7 @@ class Menu {
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
         register_setting( 'zw_ms', 'zw_ms_enable_custom_email_only' );
         register_setting( 'zw_ms', 'zw_ms_custom_email_subject' );
-		// Blacklist storage in separate group to avoid overwriting other settings on save
-		register_setting( 'zw_ms_blacklist', 'zw_ms_blacklist_ips' );
-		register_setting( 'zw_ms_blacklist', 'zw_ms_blacklist_emails' );
+		// Blacklist removed
 
 		// Elementor template IDs
 		register_setting( 'zw_ms', 'zw_ms_tpl_header_consumer' );
@@ -359,36 +357,7 @@ class Menu {
 		<?php
 	}
 
-	public static function render_blacklist_page(): void {
-		if ( ! current_user_can( 'manage_woocommerce' ) ) { return; }
-		?>
-		<div class="wrap">
-			<h1><?php esc_html_e( 'Blacklist', 'zeusweb-multishop' ); ?></h1>
-			<form method="post" action="options.php">
-				<?php settings_fields( 'zw_ms_blacklist' ); ?>
-				<table class="form-table" role="presentation">
-					<tbody>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Blocked IP addresses (one per line)', 'zeusweb-multishop' ); ?></th>
-							<td>
-								<textarea name="zw_ms_blacklist_ips" class="large-text code" rows="8"><?php echo esc_textarea( (string) get_option( 'zw_ms_blacklist_ips', '' ) ); ?></textarea>
-								<p class="description"><?php esc_html_e( 'Exact match against the detected customer IP address.', 'zeusweb-multishop' ); ?></p>
-							</td>
-						</tr>
-						<tr>
-							<th scope="row"><?php esc_html_e( 'Blocked email addresses (one per line)', 'zeusweb-multishop' ); ?></th>
-							<td>
-								<textarea name="zw_ms_blacklist_emails" class="large-text code" rows="8"><?php echo esc_textarea( (string) get_option( 'zw_ms_blacklist_emails', '' ) ); ?></textarea>
-								<p class="description"><?php esc_html_e( 'Checks billing email at checkout. Exact match, case-insensitive.', 'zeusweb-multishop' ); ?></p>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-				<?php submit_button(); ?>
-			</form>
-		</div>
-		<?php
-	}
+	// Blacklist page removed
 }
 
 
