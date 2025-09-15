@@ -145,7 +145,22 @@ class Routes {
 				if ( ! $product_id ) { continue; }
 				$prod = wc_get_product( $product_id );
 				if ( $prod ) {
-					$order->add_product( $prod, $quantity );
+					$item_id = $order->add_product( $prod, $quantity );
+					// Force business pricing on mirrored order items when the segment is business
+					if ( $item_id && $segment === 'business' ) {
+						$business_meta = (string) get_post_meta( (int) $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, true );
+						if ( $business_meta !== '' ) {
+							$unit_price = (float) $business_meta;
+							$items_map = $order->get_items();
+							if ( isset( $items_map[ (int) $item_id ] ) ) {
+								$order_item = $items_map[ (int) $item_id ];
+								$line_total = $unit_price * max( 1, (int) $quantity );
+								if ( method_exists( $order_item, 'set_subtotal' ) ) { $order_item->set_subtotal( $line_total ); }
+								if ( method_exists( $order_item, 'set_total' ) ) { $order_item->set_total( $line_total ); }
+								if ( method_exists( $order_item, 'save' ) ) { $order_item->save(); }
+							}
+						}
+					}
 					$alloc_items[] = [ 'product_id' => (int) $product_id, 'variation_id' => 0, 'quantity' => $quantity ];
 				}
 			}
@@ -186,6 +201,26 @@ class Routes {
 				CustomSender::send_order_keys_email( $order );
 				$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
 				$order->save();
+			}
+			// Trigger WooCommerce standard emails unless "custom email only" is enabled
+			if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) !== 'yes' ) {
+				try {
+					$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+					if ( ! empty( $emails ) ) {
+						foreach ( $emails as $wc_email ) {
+							if ( ! method_exists( $wc_email, 'is_enabled' ) || ! $wc_email->is_enabled() ) { continue; }
+							$status = $order->get_status();
+							if ( $status === 'processing' && $wc_email instanceof \WC_Email_Customer_Processing_Order ) {
+								$wc_email->trigger( $order->get_id() );
+							}
+							if ( $status === 'completed' && $wc_email instanceof \WC_Email_Customer_Completed_Order ) {
+								$wc_email->trigger( $order->get_id() );
+							}
+						}
+					}
+				} catch ( \Throwable $e ) {
+					Logger::instance()->log( 'error', 'Failed triggering Woo emails for mirrored order', [ 'order_id' => $order->get_id(), 'error' => $e->getMessage() ] );
+				}
 			}
 			Logger::instance()->log( 'info', 'Order mirrored and email attempted', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
 			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id(), 'order_number' => $order->get_order_number() ], 200 );
