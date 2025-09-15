@@ -85,6 +85,16 @@ class Plugin {
 		SecondaryHooks::init();
 		PrimaryHooks::init();
 		OrderNumbers::init();
+
+		// Allow searching orders by customer IP address in admin (legacy CPT and HPOS orders table)
+		add_filter( 'woocommerce_shop_order_search_fields', function( array $search_fields ): array {
+			$search_fields[] = '_customer_ip_address';
+			return array_values( array_unique( $search_fields ) );
+		} );
+		add_filter( 'woocommerce_orders_table_search_query_meta_keys', function( array $meta_keys ): array {
+			$meta_keys[] = '_customer_ip_address';
+			return array_values( array_unique( $meta_keys ) );
+		} );
 		add_action( 'admin_menu', function() {
 			if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) {
 				add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );

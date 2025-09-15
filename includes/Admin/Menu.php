@@ -32,9 +32,7 @@ class Menu {
 		add_submenu_page( 'zw-ms', __( 'Payments', 'zeusweb-multishop' ), __( 'Payments', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-payments', [ \ZeusWeb\Multishop\Admin\Payments::class, 'render_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Sites', 'zeusweb-multishop' ), __( 'Sites', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-sites', [ __CLASS__, 'render_sites_page' ] );
 		add_submenu_page( 'zw-ms', __( 'Logs', 'zeusweb-multishop' ), __( 'Logs', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-logs', [ __CLASS__, 'render_logs_page' ] );
-		if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) {
-			add_submenu_page( 'zw-ms', __( 'Orders', 'zeusweb-multishop' ), __( 'Orders', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-orders', [ \ZeusWeb\Multishop\Admin\OrdersList::class, 'render_page' ] );
-		}
+
 	}
 
 	public static function add_adminbar_segment_switch( \WP_Admin_Bar $wp_admin_bar ): void {
