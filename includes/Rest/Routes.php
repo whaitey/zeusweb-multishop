@@ -194,22 +194,25 @@ class Routes {
 			}
 			$order->save();
 
-			// Gate emails: only send when keys are present
-			$has_keys = false;
+			// Gate emails: only send when all non-bundle items have keys
+			$all_have_keys = true;
 			foreach ( $order->get_items() as $item_id => $item ) {
+				$product = $item->get_product();
+				$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+				if ( $is_bundle_container ) { continue; }
 				$keys_val = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-				if ( $keys_val !== '' ) { $has_keys = true; break; }
+				if ( $keys_val === '' ) { $all_have_keys = false; break; }
 			}
 			$email_to = $order->get_billing_email();
 			if ( ! $email_to && $email ) { $email_to = $email; }
-			if ( $has_keys && $email_to ) {
+			if ( $all_have_keys && $email_to ) {
 				Logger::instance()->log( 'info', 'Sending mirrored order custom email', [ 'order_id' => $order->get_id(), 'email' => $email_to ] );
 				CustomSender::send_order_keys_email( $order );
 				$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
 				$order->save();
 			}
 			// Trigger WooCommerce standard emails unless "custom email only" is enabled
-			if ( $has_keys && get_option( 'zw_ms_enable_custom_email_only', 'no' ) !== 'yes' ) {
+			if ( $all_have_keys && get_option( 'zw_ms_enable_custom_email_only', 'no' ) !== 'yes' ) {
 				try {
 					$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
 					if ( ! empty( $emails ) ) {

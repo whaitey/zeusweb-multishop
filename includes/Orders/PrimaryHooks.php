@@ -82,14 +82,17 @@ class PrimaryHooks {
 		$alloc   = KeysService::allocate_for_items( $site_id, (string) $order->get_id(), $items );
 		self::attach_keys_to_order( $order, $alloc );
 
-		// Gate emails: only send when at least one key is present
-		$has_keys = false;
+		// Gate emails: only send when all non-bundle items have keys
+		$all_have_keys = true;
 		foreach ( $order->get_items() as $item_id => $item ) {
+			$product = $item->get_product();
+			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+			if ( $is_bundle_container ) { continue; }
 			$keys_val = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-			if ( $keys_val !== '' ) { $has_keys = true; break; }
+			if ( $keys_val === '' ) { $all_have_keys = false; break; }
 		}
-		if ( ! $has_keys ) {
-			Logger::instance()->log( 'info', 'Skipping customer emails (no keys yet)', [ 'order_id' => $order->get_id() ] );
+		if ( ! $all_have_keys ) {
+			Logger::instance()->log( 'info', 'Skipping customer emails (not all items have keys yet)', [ 'order_id' => $order->get_id() ] );
 			return;
 		}
 

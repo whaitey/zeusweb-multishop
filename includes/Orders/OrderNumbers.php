@@ -13,6 +13,11 @@ class OrderNumbers {
 
 	public static function format_order_number( $order_number, $order ) {
 		try {
+			// If this is a mirrored order on the Primary with a remote order number, use it verbatim
+			$remote_num = (string) $order->get_meta( '_zw_ms_remote_order_number' );
+			if ( $remote_num !== '' ) {
+				return $remote_num;
+			}
 			$origin_code = (string) $order->get_meta( '_zw_ms_origin_site_code' );
 			if ( $origin_code === '' ) {
 				$origin_code = (string) get_option( 'zw_ms_site_code', '1' );

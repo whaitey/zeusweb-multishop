@@ -54,11 +54,24 @@ class Service {
 							}
 						}
 						$order->save();
-						try {
-							CustomSender::send_order_keys_email( $order );
-							Logger::instance()->log( 'info', 'Backorder fulfillment email sent', [ 'order_id' => $order->get_id(), 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
-						} catch ( \Throwable $e ) {
-							Logger::instance()->log( 'error', 'Backorder fulfillment email failed', [ 'order_id' => (int) $row->remote_order_id, 'error' => $e->getMessage() ] );
+						// Gate: only send when all non-bundle items have keys
+						$all_have_keys = true;
+						foreach ( $order->get_items() as $iid => $it ) {
+							$prod = $it->get_product();
+							$is_bundle_container = $prod && method_exists( $prod, 'is_type' ) && $prod->is_type( 'bundle' );
+							if ( $is_bundle_container ) { continue; }
+							$kv = (string) wc_get_order_item_meta( $iid, '_zw_ms_keys', true );
+							if ( $kv === '' ) { $all_have_keys = false; break; }
+						}
+						if ( $all_have_keys ) {
+							try {
+								CustomSender::send_order_keys_email( $order );
+								Logger::instance()->log( 'info', 'Backorder fulfillment email sent', [ 'order_id' => $order->get_id(), 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
+							} catch ( \Throwable $e ) {
+								Logger::instance()->log( 'error', 'Backorder fulfillment email failed', [ 'order_id' => (int) $row->remote_order_id, 'error' => $e->getMessage() ] );
+							}
+						} else {
+							Logger::instance()->log( 'info', 'Skipping backorder email (not all items have keys yet)', [ 'order_id' => (int) $row->remote_order_id ] );
 						}
 					}
 				} else {
@@ -87,11 +100,24 @@ class Service {
 							}
 						}
 						$order->save();
-						try {
-							CustomSender::send_order_keys_email( $order );
-							Logger::instance()->log( 'info', 'Backorder fulfillment email sent (mirrored order)', [ 'order_id' => $order->get_id(), 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id, 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
-						} catch ( \Throwable $e ) {
-							Logger::instance()->log( 'error', 'Backorder fulfillment email failed (mirrored order)', [ 'remote_order_id' => (string) $row->remote_order_id, 'error' => $e->getMessage() ] );
+						// Gate: only send when all non-bundle items have keys
+						$all_have_keys = true;
+						foreach ( $order->get_items() as $iid => $it ) {
+							$prod = $it->get_product();
+							$is_bundle_container = $prod && method_exists( $prod, 'is_type' ) && $prod->is_type( 'bundle' );
+							if ( $is_bundle_container ) { continue; }
+							$kv = (string) wc_get_order_item_meta( $iid, '_zw_ms_keys', true );
+							if ( $kv === '' ) { $all_have_keys = false; break; }
+						}
+						if ( $all_have_keys ) {
+							try {
+								CustomSender::send_order_keys_email( $order );
+								Logger::instance()->log( 'info', 'Backorder fulfillment email sent (mirrored order)', [ 'order_id' => $order->get_id(), 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id, 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
+							} catch ( \Throwable $e ) {
+								Logger::instance()->log( 'error', 'Backorder fulfillment email failed (mirrored order)', [ 'remote_order_id' => (string) $row->remote_order_id, 'error' => $e->getMessage() ] );
+							}
+						} else {
+							Logger::instance()->log( 'info', 'Skipping backorder email (mirrored, not all items have keys yet)', [ 'remote_order_id' => (string) $row->remote_order_id ] );
 						}
 					} else {
 						Logger::instance()->log( 'warning', 'Mirrored order not found for backorder fulfillment', [ 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id ] );
