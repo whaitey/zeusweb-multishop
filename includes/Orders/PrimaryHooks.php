@@ -23,14 +23,16 @@ class PrimaryHooks {
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) { return; }
 		if ( 'yes' === (string) $order->get_meta( '_zw_ms_custom_email_sent' ) ) { return; }
-		// Send only if keys or shortage meta exist
-		$has_meta = false;
+		// Only send if ALL non-bundle items have keys (avoid early shortage-only emails)
+		$all_have_keys = true;
 		foreach ( $order->get_items() as $item_id => $item ) {
+			$product = $item->get_product();
+			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+			if ( $is_bundle_container ) { continue; }
 			$keys = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-			$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
-			if ( $keys !== '' || $shortage !== '' ) { $has_meta = true; break; }
+			if ( $keys === '' ) { $all_have_keys = false; break; }
 		}
-		if ( ! $has_meta ) { return; }
+		if ( ! $all_have_keys ) { return; }
 		Logger::instance()->log( 'info', 'Thankyou fallback: sending custom email', [ 'order_id' => $order->get_id() ] );
 		CustomSender::send_order_keys_email( $order );
 		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );

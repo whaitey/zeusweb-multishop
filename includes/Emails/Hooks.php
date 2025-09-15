@@ -18,6 +18,8 @@ class Hooks {
 		// Prevent Woo default emails until keys are ready (or when custom-only is enabled)
 		add_filter( 'woocommerce_email_enabled_customer_processing_order', [ __CLASS__, 'maybe_disable_customer_email' ], 10, 2 );
 		add_filter( 'woocommerce_email_enabled_customer_completed_order', [ __CLASS__, 'maybe_disable_customer_email' ], 10, 2 );
+		add_filter( 'woocommerce_email_enabled_customer_on_hold_order', [ __CLASS__, 'maybe_disable_customer_email' ], 10, 2 );
+		add_filter( 'woocommerce_email_enabled_customer_invoice', [ __CLASS__, 'maybe_disable_customer_email' ], 10, 2 );
 	}
 
 	public static function append_product_custom_emails( $order, $sent_to_admin, $plain_text ): void {
