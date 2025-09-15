@@ -99,6 +99,30 @@ class Plugin {
 			$meta_keys[] = 'customer_ip_address';
 			return array_values( array_unique( $meta_keys ) );
 		} );
+
+		// Support direct IP filtering via URL param for legacy orders list
+		add_filter( 'request', function( array $vars ): array {
+			global $typenow;
+			if ( 'shop_order' === $typenow && isset( $_GET['_shop_order_ip'] ) ) {
+				$ip = isset( $_GET['_shop_order_ip'] ) ? wc_clean( sanitize_text_field( wp_unslash( $_GET['_shop_order_ip'] ) ) ) : '';
+				if ( $ip !== '' ) {
+					$vars['meta_key'] = '_customer_ip_address';
+					$vars['meta_value'] = $ip;
+				}
+			}
+			return $vars;
+		} );
+
+		// HPOS: allow filtering Orders table by IP via URL param (admin.php?page=wc-orders&_shop_order_ip=...)
+		add_filter( 'woocommerce_order_query_args', function( array $args ): array {
+			if ( isset( $_GET['page'] ) && $_GET['page'] === 'wc-orders' && isset( $_GET['_shop_order_ip'] ) ) {
+				$ip = isset( $_GET['_shop_order_ip'] ) ? wc_clean( sanitize_text_field( wp_unslash( $_GET['_shop_order_ip'] ) ) ) : '';
+				if ( $ip !== '' ) {
+					$args['ip_address'] = $ip;
+				}
+			}
+			return $args;
+		} );
 		add_action( 'admin_menu', function() {
 			if ( get_option( 'zw_ms_mode', 'primary' ) === 'primary' ) {
 				add_submenu_page( 'zw-ms', __( 'CD Keys', 'zeusweb-multishop' ), __( 'CD Keys', 'zeusweb-multishop' ), 'manage_woocommerce', 'zw-ms-keys', [ AdminCDKeys::class, 'render_page' ] );

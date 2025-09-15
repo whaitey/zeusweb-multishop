@@ -4,7 +4,7 @@ Tags: woocommerce, multishop, cd-keys, elementor
 Requires at least: 6.2
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.2.08
+Stable tag: 0.2.09
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -44,6 +44,9 @@ This plugin enables a central Primary shop to control catalog, pricing (includin
 
 = 0.2.08 =
 * Fix: Broaden IP search to cover alternative meta key
+
+= 0.2.09 =
+* Feature: Add admin URL param IP filter for legacy and HPOS orders
 
 = 0.1.0 =
 * Initial scaffolding and bootstrap.
