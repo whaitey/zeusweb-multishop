@@ -10,7 +10,9 @@ class Notices {
 	public static function init(): void {
 		add_action( 'woocommerce_thankyou', [ __CLASS__, 'maybe_show_shortage_notice' ], 20, 1 );
 		add_action( 'woocommerce_view_order', [ __CLASS__, 'maybe_show_shortage_notice' ], 20, 1 );
-		// Blacklist enforcement removed
+		// Business-only extra fields
+		add_filter( 'woocommerce_checkout_fields', [ __CLASS__, 'maybe_add_business_fields' ] );
+		add_action( 'woocommerce_after_checkout_validation', [ __CLASS__, 'maybe_validate_business_fields' ], 10, 2 );
 	}
 
 	public static function maybe_show_shortage_notice( $order_id ): void {
@@ -37,5 +39,35 @@ class Notices {
 		return false;
 	}
 
-	// Blacklist methods removed
+	public static function maybe_add_business_fields( array $fields ): array {
+		if ( method_exists( '\\ZeusWeb\\Multishop\\Segments\\Manager', 'is_business' ) && \ZeusWeb\Multishop\Segments\Manager::is_business() ) {
+			$fields['billing']['billing_company'] = [
+				'label'       => __( 'Company name', 'zeusweb-multishop' ),
+				'required'    => true,
+				'class'       => [ 'form-row-wide' ],
+				'priority'    => 60,
+			];
+			$fields['billing']['billing_vat_number'] = [
+				'label'       => __( 'VAT Number', 'zeusweb-multishop' ),
+				'required'    => true,
+				'class'       => [ 'form-row-wide' ],
+				'priority'    => 65,
+			];
+		}
+		return $fields;
+	}
+
+	public static function maybe_validate_business_fields( $data, $errors ): void {
+		if ( method_exists( '\\ZeusWeb\\Multishop\\Segments\\Manager', 'is_business' ) && ! \ZeusWeb\Multishop\Segments\Manager::is_business() ) {
+			return;
+		}
+		$company = isset( $data['billing_company'] ) ? trim( (string) $data['billing_company'] ) : '';
+		$vat     = isset( $data['billing_vat_number'] ) ? trim( (string) $data['billing_vat_number'] ) : '';
+		if ( $company === '' ) {
+			wc_add_notice( __( 'Company name is required for business orders.', 'zeusweb-multishop' ), 'error' );
+		}
+		if ( $vat === '' ) {
+			wc_add_notice( __( 'VAT Number is required for business orders.', 'zeusweb-multishop' ), 'error' );
+		}
+	}
 }
