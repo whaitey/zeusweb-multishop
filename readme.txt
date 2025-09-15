@@ -4,7 +4,7 @@ Tags: woocommerce, multishop, cd-keys, elementor
 Requires at least: 6.2
 Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 0.2.11
+Stable tag: 0.2.12
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -53,6 +53,9 @@ This plugin enables a central Primary shop to control catalog, pricing (includin
 
 = 0.2.11 =
 * Feature: Blacklist admin page; block checkout by IP/email
+
+= 0.2.12 =
+* Fix: Blacklist only blocks frontend checkout; never affects admin users
 
 = 0.1.0 =
 * Initial scaffolding and bootstrap.
