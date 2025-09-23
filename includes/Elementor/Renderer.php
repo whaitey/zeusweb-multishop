@@ -52,17 +52,7 @@ class Renderer {
 			return 0;
 		}
 		
-		// Get the appropriate template ID based on slot and segment
-		switch ( $slot . '_' . $segment ) {
-			case 'header_consumer':
-				return (int) get_option( 'zw_ms_tpl_header_consumer', 0 );
-			case 'header_business':
-				return (int) get_option( 'zw_ms_tpl_header_business', 0 );
-			case 'footer_consumer':
-				return (int) get_option( 'zw_ms_tpl_footer_consumer', 0 );
-			case 'footer_business':
-				return (int) get_option( 'zw_ms_tpl_footer_business', 0 );
-		}
+		// Template selection removed; managed manually on each site
 		return 0;
 	}
 

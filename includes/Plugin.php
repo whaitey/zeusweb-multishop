@@ -9,7 +9,6 @@ use ZeusWeb\Multishop\Install\Installer;
 use ZeusWeb\Multishop\Segments\Manager as SegmentManager;
 use ZeusWeb\Multishop\Products\Meta as ProductMeta;
 use ZeusWeb\Multishop\Pricing\Resolver as PricingResolver;
-use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
 use ZeusWeb\Multishop\Admin\Menu as AdminMenu;
 use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
@@ -78,7 +77,6 @@ class Plugin {
 		SegmentManager::init();
 		ProductMeta::init();
 		PricingResolver::init();
-		EmailHooks::init();
 		AdminMenu::init();
 		OrdersColumns::init();
 		RestRoutes::init();
