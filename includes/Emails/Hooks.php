@@ -89,8 +89,13 @@ class Hooks {
 	 */
 	public static function maybe_disable_customer_email( bool $enabled, $order ): bool {
 		try {
-			if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) { return false; }
+			// Never affect admin UI screens or non-order contexts (including AJAX/REST)
+			if ( is_admin() || ( function_exists( 'wp_doing_ajax' ) && wp_doing_ajax() ) || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) { return $enabled; }
+			// Allow globally disabling gating (send Woo emails regardless of keys)
+			if ( get_option( 'zw_ms_disable_email_gating', 'no' ) === 'yes' ) { return $enabled; }
 			if ( ! $order || ! is_a( $order, 'WC_Order' ) ) { return $enabled; }
+			// If custom-only is enabled, suppress Woo customer emails at send time (order context only)
+			if ( get_option( 'zw_ms_enable_custom_email_only', 'no' ) === 'yes' ) { return false; }
 			// Mirrored orders explicitly prefer custom email
 			$force_custom = (string) $order->get_meta( '_zw_ms_force_custom_email' );
 			if ( $force_custom === 'yes' ) { return false; }

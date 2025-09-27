@@ -68,6 +68,8 @@ class Menu {
 		// register_setting( 'zw_ms', 'zw_ms_secret' );
 		register_setting( 'zw_ms', 'zw_ms_primary_secret' );
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
+		register_setting( 'zw_ms', 'zw_ms_enable_custom_email_only' );
+		register_setting( 'zw_ms', 'zw_ms_disable_email_gating' );
 		// Blacklist removed
 
 		// Elementor template ID settings removed in multi-domain rework
@@ -303,6 +305,14 @@ class Menu {
 						<th><?php esc_html_e( 'Level', 'zeusweb-multishop' ); ?></th>
 						<th><?php esc_html_e( 'Message', 'zeusweb-multishop' ); ?></th>
 						<th><?php esc_html_e( 'Context', 'zeusweb-multishop' ); ?></th>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Email behavior', 'zeusweb-multishop' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="zw_ms_enable_custom_email_only" value="yes" <?php checked( get_option( 'zw_ms_enable_custom_email_only', 'no' ), 'yes' ); ?> /> <?php esc_html_e( 'Custom email only (disable Woo emails)', 'zeusweb-multishop' ); ?></label>
+							<br />
+							<label><input type="checkbox" name="zw_ms_disable_email_gating" value="yes" <?php checked( get_option( 'zw_ms_disable_email_gating', 'no' ), 'yes' ); ?> /> <?php esc_html_e( 'Disable email gating (send Woo emails regardless of keys)', 'zeusweb-multishop' ); ?></label>
+						</td>
 					</tr>
 				</thead>
 				<tbody>
