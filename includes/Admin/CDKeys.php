@@ -20,13 +20,22 @@ class CDKeys {
 			<?php
 			return;
 		}
-		if ( isset( $_POST['zw_ms_keys_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_keys_nonce'] ) ), 'zw_ms_keys_save' ) && current_user_can( 'manage_woocommerce' ) ) {
+        if ( isset( $_POST['zw_ms_keys_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_keys_nonce'] ) ), 'zw_ms_keys_save' ) && current_user_can( 'manage_woocommerce' ) ) {
 			self::handle_submit();
 		}
 		$product_id = isset( $_GET['product_id'] ) ? absint( $_GET['product_id'] ) : 0;
 		?>
-		<div class="wrap">
+        <div class="wrap">
 			<h1><?php esc_html_e( 'CD Keys Manager', 'zeusweb-multishop' ); ?></h1>
+            <form method="post" style="margin:12px 0;">
+                <?php wp_nonce_field( 'zw_ms_keys_purge', 'zw_ms_keys_purge_nonce' ); ?>
+                <input type="hidden" name="zw_ms_action" value="purge_all" />
+                <p>
+                    <button type="submit" class="button button-secondary" onclick="return confirm('<?php echo esc_js( __( 'Delete ALL available keys, assigned keys, and pending backorders? This cannot be undone.', 'zeusweb-multishop' ) ); ?>');">
+                        <?php esc_html_e( 'Purge all keys and backorders', 'zeusweb-multishop' ); ?>
+                    </button>
+                </p>
+            </form>
 			<?php if ( $product_id ) { self::render_manage_product( $product_id ); } else { self::render_product_list(); } ?>
 		</div>
 		<?php
@@ -198,10 +207,17 @@ class CDKeys {
 
 	private static function handle_submit(): void {
 		$product_id = isset( $_POST['product_id'] ) ? absint( $_POST['product_id'] ) : 0;
-		if ( ! $product_id ) {
-			return;
-		}
-		$action = isset( $_POST['zw_ms_action'] ) ? sanitize_text_field( wp_unslash( $_POST['zw_ms_action'] ) ) : '';
+        // Global actions that do not require product_id
+        $action = isset( $_POST['zw_ms_action'] ) ? sanitize_text_field( wp_unslash( $_POST['zw_ms_action'] ) ) : '';
+        if ( $action === 'purge_all' ) {
+            if ( ! isset( $_POST['zw_ms_keys_purge_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_keys_purge_nonce'] ) ), 'zw_ms_keys_purge' ) ) {
+                return;
+            }
+            self::purge_all_keys_and_backorders();
+            add_settings_error( 'zw_ms_keys', 'purged_all', __( 'All keys and pending backorders have been deleted.', 'zeusweb-multishop' ), 'updated' );
+            return;
+        }
+        if ( ! $product_id ) { return; }
 		if ( $action === 'update_key' && isset( $_POST['key_id'], $_POST['key_value'] ) ) {
 			$key_id = absint( $_POST['key_id'] );
 			$new_plain = (string) wp_unslash( $_POST['key_value'] );
@@ -247,6 +263,16 @@ class CDKeys {
 		// Trigger fulfillment for this product.
 		FulfillmentService::fulfill_backorders_for_product( $product_id );
 	}
+
+    private static function purge_all_keys_and_backorders(): void {
+        global $wpdb;
+        $keys_table = Tables::keys();
+        $bo_table   = Tables::backorders();
+        // Delete all keys (available and assigned)
+        $wpdb->query( "DELETE FROM {$keys_table}" );
+        // Delete all backorders
+        $wpdb->query( "DELETE FROM {$bo_table}" );
+    }
 
 	private static function count_backorders( int $product_id ): int {
 		global $wpdb;
