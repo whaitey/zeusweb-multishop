@@ -20,9 +20,9 @@ class CDKeys {
 			<?php
 			return;
 		}
-        if ( isset( $_POST['zw_ms_keys_nonce'] ) && wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_keys_nonce'] ) ), 'zw_ms_keys_save' ) && current_user_can( 'manage_woocommerce' ) ) {
-			self::handle_submit();
-		}
+        if ( current_user_can( 'manage_woocommerce' ) && $_SERVER['REQUEST_METHOD'] === 'POST' ) {
+            self::handle_submit();
+        }
 		$product_id = isset( $_GET['product_id'] ) ? absint( $_GET['product_id'] ) : 0;
 		?>
         <div class="wrap">
@@ -206,7 +206,7 @@ class CDKeys {
 	}
 
 	private static function handle_submit(): void {
-		$product_id = isset( $_POST['product_id'] ) ? absint( $_POST['product_id'] ) : 0;
+        $product_id = isset( $_POST['product_id'] ) ? absint( $_POST['product_id'] ) : 0;
         // Global actions that do not require product_id
         $action = isset( $_POST['zw_ms_action'] ) ? sanitize_text_field( wp_unslash( $_POST['zw_ms_action'] ) ) : '';
         if ( $action === 'purge_all' ) {
@@ -218,6 +218,10 @@ class CDKeys {
             return;
         }
         if ( ! $product_id ) { return; }
+        // Verify nonce for product-specific key operations
+        if ( ! isset( $_POST['zw_ms_keys_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['zw_ms_keys_nonce'] ) ), 'zw_ms_keys_save' ) ) {
+            return;
+        }
 		if ( $action === 'update_key' && isset( $_POST['key_id'], $_POST['key_value'] ) ) {
 			$key_id = absint( $_POST['key_id'] );
 			$new_plain = (string) wp_unslash( $_POST['key_value'] );
