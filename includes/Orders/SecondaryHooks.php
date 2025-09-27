@@ -100,35 +100,7 @@ class SecondaryHooks {
 				$order->update_meta_data( '_zw_ms_primary_order_number', $primary_order_number );
 				$order->save();
 			}
-			if ( isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
-				self::attach_keys_to_order( $order, $data['allocations'] );
-				Logger::instance()->log( 'info', 'Secondary attached keys from Primary mirror', [ 'order_id' => $order->get_id() ] );
-				// When all keys are present, auto-complete and trigger local emails
-				$all_have_keys = true;
-				foreach ( $order->get_items() as $item_id => $it ) {
-					$product = $it->get_product();
-					$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
-					if ( $is_bundle_container ) { continue; }
-					$kv = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-					if ( $kv === '' ) { $all_have_keys = false; break; }
-				}
-				if ( $all_have_keys ) {
-					try {
-						if ( method_exists( $order, 'update_status' ) ) {
-							$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
-						}
-						// Trigger Woo + custom email locally
-						$status = $order->get_status();
-						$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
-						foreach ( $emails as $email ) {
-							if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
-							if ( $status === 'processing' && $email instanceof \WC_Email_Customer_Processing_Order ) { $email->trigger( $order->get_id() ); }
-							if ( $status === 'completed' && $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
-						}
-						\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
-					} catch ( \Throwable $e ) {}
-				}
-			}
+			// Do not attach keys or send emails here; Secondary will receive /deliver-keys to handle keys/emails locally.
 		}
 	}
 
