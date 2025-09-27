@@ -43,6 +43,12 @@ class Routes {
 			'callback'            => [ __CLASS__, 'mirror_order' ],
 		] );
 
+		register_rest_route( 'zw-ms/v1', '/deliver-keys', [
+			'methods'             => WP_REST_Server::CREATABLE,
+			'permission_callback' => [ __CLASS__, 'verify_hmac_from_primary' ],
+			'callback'            => [ __CLASS__, 'deliver_keys' ],
+		] );
+
 		register_rest_route( 'zw-ms/v1', '/payments-config', [
 			'methods'             => WP_REST_Server::READABLE,
 			'permission_callback' => [ __CLASS__, 'verify_hmac' ],
@@ -60,6 +66,21 @@ class Routes {
 		$method    = $request->get_method();
 		$body      = $request->get_body();
 		return HMAC::verify( $signature, $method, $path, $timestamp, $nonce, $body, $secret );
+	}
+
+	public static function verify_hmac_from_primary( WP_REST_Request $request ): bool {
+		// On Secondary, trust requests signed with Primary shared secret
+		$primary_secret = (string) get_option( 'zw_ms_primary_secret', '' );
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' || $primary_secret === '' ) {
+			return false;
+		}
+		$signature = (string) $request->get_header( 'x-zw-signature' );
+		$timestamp = (string) $request->get_header( 'x-zw-timestamp' );
+		$nonce     = (string) $request->get_header( 'x-zw-nonce' );
+		$path      = $request->get_route();
+		$method    = $request->get_method();
+		$body      = $request->get_body();
+		return HMAC::verify( $signature, $method, $path, $timestamp, $nonce, $body, $primary_secret );
 	}
 
 	public static function allocate_keys( WP_REST_Request $request ) {
@@ -179,7 +200,13 @@ class Routes {
 			}
 			$order->save();
 
-			Logger::instance()->log( 'info', 'Order mirrored (emails not handled here)', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
+			// If this order originated from a Secondary (site_id != this site's ID), POST keys back
+			$local_site_id = (string) get_option( 'zw_ms_site_id' );
+			if ( $site_id !== '' && $local_site_id !== '' && $site_id !== $local_site_id ) {
+				self::post_keys_back_to_secondary( $site_id, $alloc, $remote_order_id );
+			}
+
+			Logger::instance()->log( 'info', 'Order mirrored (emails handled by origin site)', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
 			return new WP_REST_Response( [ 'allocations' => $alloc, 'order_id' => $order->get_id(), 'order_number' => $order->get_order_number() ], 200 );
 		} catch ( \Throwable $e ) {
 			Logger::instance()->log( 'error', 'Mirror order failed', [ 'error' => $e->getMessage(), 'remote_order_id' => $remote_order_id ] );
@@ -224,6 +251,103 @@ class Routes {
 		}
 		Logger::instance()->log( 'info', 'payments-config response', [ 'site_id' => $site_id, 'segment' => $segment, 'allowed' => $allowed ] );
 		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
+	}
+
+	private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id ): void {
+		try {
+			// Look up Secondary URL by site_id from Sites table when available. For now, reuse configured Primary URL as base and rely on Secondary to call us; or extend to a registry.
+			// Minimal viable: extract Secondary callback URL from order meta if present (not available now). Skipping lookup; log only.
+			$secondary_url = (string) get_option( 'zw_ms_secondary_callback_url_' . $secondary_site_id, '' );
+			$primary_url   = (string) get_option( 'zw_ms_primary_url', '' );
+			$base = $secondary_url !== '' ? $secondary_url : $primary_url; // fallback if custom callback URL set via option
+			$secret = (string) get_option( 'zw_ms_primary_secret', '' );
+			if ( $base === '' || $secret === '' ) { return; }
+			$path = '/zw-ms/v1/deliver-keys';
+			$url  = rtrim( $base, '/' ) . '/wp-json' . $path;
+			$body_arr = [ 'remote_order_id' => $remote_order_id, 'allocations' => $allocations ];
+			$body = wp_json_encode( $body_arr );
+			$method = 'POST';
+			$timestamp = (string) time();
+			$nonce = wp_generate_uuid4();
+			$signature = HMAC::sign( $method, $path, $timestamp, $nonce, $body, $secret );
+			$args = [
+				'headers' => [
+					'Content-Type'  => 'application/json',
+					'X-ZW-Timestamp' => $timestamp,
+					'X-ZW-Nonce'     => $nonce,
+					'X-ZW-Signature' => $signature,
+					'Accept'         => 'application/json',
+				],
+				'body'    => $body,
+				'timeout' => 20,
+			];
+			$response = wp_remote_post( $url, $args );
+			if ( is_wp_error( $response ) ) { return; }
+		} catch ( \Throwable $e ) {
+			// swallow; logging not available here
+		}
+	}
+
+	public static function deliver_keys( WP_REST_Request $request ) {
+		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) {
+			return new WP_REST_Response( [ 'error' => 'not_secondary' ], 400 );
+		}
+		$params = $request->get_json_params();
+		$remote_order_id = sanitize_text_field( (string) ( $params['remote_order_id'] ?? '' ) );
+		$allocations = is_array( $params['allocations'] ?? null ) ? $params['allocations'] : [];
+		if ( $remote_order_id === '' || empty( $allocations ) ) {
+			return new WP_REST_Response( [ 'error' => 'invalid' ], 400 );
+		}
+		$order = wc_get_order( (int) $remote_order_id );
+		if ( ! $order ) {
+			return new WP_REST_Response( [ 'error' => 'order_not_found' ], 404 );
+		}
+		// Attach keys
+		$shortage = (string) get_option( 'zw_ms_shortage_message', '' );
+		foreach ( $allocations as $alloc ) {
+			$product_id = (int) ( $alloc['product_id'] ?? 0 );
+			$keys       = is_array( $alloc['keys'] ?? null ) ? $alloc['keys'] : [];
+			$pending    = (int) ( $alloc['pending'] ?? 0 );
+			if ( $product_id <= 0 ) { continue; }
+			foreach ( $order->get_items() as $item_id => $item ) {
+				if ( (int) $item->get_product_id() !== $product_id ) { continue; }
+				if ( ! empty( $keys ) ) {
+					wc_add_order_item_meta( $item_id, '_zw_ms_keys', implode( "\n", array_map( 'sanitize_text_field', $keys ) ) );
+				}
+				if ( $pending > 0 && $shortage ) {
+					wc_add_order_item_meta( $item_id, '_zw_ms_shortage', $shortage );
+				}
+			}
+		}
+		$order->save();
+		// If all non-bundle items have keys, trigger emails on this Secondary
+		$all_have_keys = true;
+		foreach ( $order->get_items() as $item_id => $item ) {
+			$product = $item->get_product();
+			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
+			if ( $is_bundle_container ) { continue; }
+			$val = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
+			if ( $val === '' ) { $all_have_keys = false; break; }
+		}
+		if ( $all_have_keys ) {
+			// Trigger Woo emails and our custom email locally
+			try {
+				$order->add_order_note( 'Keys delivered from Primary; triggering customer emails.' );
+				// Trigger Woo
+				$status = $order->get_status();
+				$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+				foreach ( $emails as $email ) {
+					if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
+					if ( $status === 'processing' && $email instanceof \WC_Email_Customer_Processing_Order ) { $email->trigger( $order->get_id() ); }
+					if ( $status === 'completed' && $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
+				}
+				// Custom keys email
+				\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
+			} catch ( \Throwable $e ) {
+				// ignore
+			}
+		}
+		return new WP_REST_Response( [ 'ok' => true ], 200 );
 	}
 }
 

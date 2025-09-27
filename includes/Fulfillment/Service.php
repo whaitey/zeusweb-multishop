@@ -34,9 +34,9 @@ class Service {
 					$keys_by_product[ $pid ] = $keys;
 				}
 			}
-			if ( $delivered > 0 ) {
-				// If this backorder belongs to our Primary site, attach the new keys to the order items and email.
-				if ( (string) $row->site_id === (string) get_option( 'zw_ms_site_id' ) ) {
+            if ( $delivered > 0 ) {
+                // If this backorder belongs to our Primary site, attach keys to the order and email.
+                if ( (string) $row->site_id === (string) get_option( 'zw_ms_site_id' ) ) {
 					$order = wc_get_order( (int) $row->remote_order_id );
 					if ( $order ) {
 						foreach ( $order->get_items() as $item_id => $item ) {
@@ -74,55 +74,34 @@ class Service {
 							Logger::instance()->log( 'info', 'Skipping backorder email (not all items have keys yet)', [ 'order_id' => (int) $row->remote_order_id ] );
 						}
 					}
-				} else {
-					// Secondary-origin order: find mirrored Primary order by remote identifiers and notify customer from Primary
-					$orders = function_exists( 'wc_get_orders' ) ? wc_get_orders( [
-						'type'      => 'shop_order',
-						'limit'     => 1,
-						'meta_query'=> [
-							[ 'key' => '_zw_ms_remote_site_id', 'value' => (string) $row->site_id, 'compare' => '=' ],
-							[ 'key' => '_zw_ms_remote_order_id', 'value' => (string) $row->remote_order_id, 'compare' => '=' ],
-						],
-					] ) : [];
-					$order = is_array( $orders ) && ! empty( $orders ) ? $orders[0] : null;
-					if ( $order ) {
-						foreach ( $order->get_items() as $item_id => $item ) {
-							$pid = (int) $item->get_product_id();
-							if ( isset( $keys_by_product[ $pid ] ) ) {
-								$existing = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-								$new_keys = implode( "\n", array_map( 'sanitize_text_field', $keys_by_product[ $pid ] ) );
-								$combined = trim( $existing ) !== '' ? ( $existing . "\n" . $new_keys ) : $new_keys;
-								wc_update_order_item_meta( $item_id, '_zw_ms_keys', $combined );
-								$shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
-								if ( $shortage !== '' ) {
-									wc_delete_order_item_meta( $item_id, '_zw_ms_shortage' );
-								}
-							}
-						}
-						$order->save();
-						// Gate: only send when all non-bundle items have keys
-						$all_have_keys = true;
-						foreach ( $order->get_items() as $iid => $it ) {
-							$prod = $it->get_product();
-							$is_bundle_container = $prod && method_exists( $prod, 'is_type' ) && $prod->is_type( 'bundle' );
-							if ( $is_bundle_container ) { continue; }
-							$kv = (string) wc_get_order_item_meta( $iid, '_zw_ms_keys', true );
-							if ( $kv === '' ) { $all_have_keys = false; break; }
-						}
-						if ( $all_have_keys ) {
-							try {
-								CustomSender::send_order_keys_email( $order );
-								Logger::instance()->log( 'info', 'Backorder fulfillment email sent (mirrored order)', [ 'order_id' => $order->get_id(), 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id, 'product_id' => (int) $row->product_id, 'delivered' => $delivered ] );
-							} catch ( \Throwable $e ) {
-								Logger::instance()->log( 'error', 'Backorder fulfillment email failed (mirrored order)', [ 'remote_order_id' => (string) $row->remote_order_id, 'error' => $e->getMessage() ] );
-							}
-						} else {
-							Logger::instance()->log( 'info', 'Skipping backorder email (mirrored, not all items have keys yet)', [ 'remote_order_id' => (string) $row->remote_order_id ] );
-						}
-					} else {
-						Logger::instance()->log( 'warning', 'Mirrored order not found for backorder fulfillment', [ 'remote_order_id' => (string) $row->remote_order_id, 'site_id' => (string) $row->site_id ] );
-					}
-				}
+                } else {
+                    // Secondary-origin order: POST keys to Secondary to trigger emails there
+                    $alloc = [];
+                    foreach ( $keys_by_product as $pid => $keys ) {
+                        $alloc[] = [ 'product_id' => (int) $pid, 'keys' => array_values( array_map( 'sanitize_text_field', $keys ) ), 'pending' => 0 ];
+                    }
+                    // Reuse Routes helper to post back
+                    if ( class_exists( '\\ZeusWeb\\Multishop\\Rest\\Routes' ) ) {
+                        \ZeusWeb\Multishop\Rest\Routes::deliver_keys( new \WP_REST_Request() ); // placeholder to ensure class loads
+                    }
+                    // Build and post
+                    $secondary_url = (string) get_option( 'zw_ms_secondary_callback_url_' . (string) $row->site_id, '' );
+                    $primary_url   = (string) get_option( 'zw_ms_primary_url', '' );
+                    $base = $secondary_url !== '' ? $secondary_url : $primary_url;
+                    $secret = (string) get_option( 'zw_ms_primary_secret', '' );
+                    if ( $base && $secret ) {
+                        $path = '/zw-ms/v1/deliver-keys';
+                        $url  = rtrim( $base, '/' ) . '/wp-json' . $path;
+                        $body_arr = [ 'remote_order_id' => (string) $row->remote_order_id, 'allocations' => $alloc ];
+                        $body = wp_json_encode( $body_arr );
+                        $method = 'POST';
+                        $timestamp = (string) time();
+                        $nonce = wp_generate_uuid4();
+                        $sig = \ZeusWeb\Multishop\Rest\HMAC::sign( $method, $path, $timestamp, $nonce, $body, $secret );
+                        $args = [ 'headers' => [ 'Content-Type' => 'application/json', 'X-ZW-Timestamp' => $timestamp, 'X-ZW-Nonce' => $nonce, 'X-ZW-Signature' => $sig, 'Accept' => 'application/json' ], 'body' => $body, 'timeout' => 20 ];
+                        wp_remote_post( $url, $args );
+                    }
+                }
 				// Update backorder row
 				if ( $delivered >= (int) $row->qty_pending ) {
 					$wpdb->update( $table, [ 'fulfilled_at' => current_time( 'mysql', 1 ), 'qty_pending' => 0 ], [ 'id' => (int) $row->id ], [ '%s', '%d' ], [ '%d' ] );
