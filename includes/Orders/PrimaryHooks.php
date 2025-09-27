@@ -108,6 +108,12 @@ class PrimaryHooks {
 		Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
 		CustomSender::send_order_keys_email( $order );
 		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+		// Auto-complete when all keys are delivered
+		try {
+			if ( method_exists( $order, 'update_status' ) ) {
+				$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
+			}
+		} catch ( \Throwable $e ) {}
 		$order->save();
 		Logger::instance()->log( 'info', 'Custom email send attempted', [ 'order_id' => $order->get_id() ] );
 	}

@@ -343,6 +343,10 @@ class Routes {
 				}
 				// Custom keys email
 				\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
+				// Auto-complete now that keys are present
+				if ( method_exists( $order, 'update_status' ) ) {
+					$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
+				}
 			} catch ( \Throwable $e ) {
 				// ignore
 			}
