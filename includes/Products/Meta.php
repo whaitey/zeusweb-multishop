@@ -11,31 +11,21 @@ class Meta {
 	public const META_CUSTOM_EMAIL   = '_zw_ms_custom_email';
 
 	public static function init(): void {
-		add_action( 'woocommerce_product_options_pricing', [ __CLASS__, 'add_business_price_field' ] );
+		// Removed business price field injection
+		// add_action( 'woocommerce_product_options_pricing', [ __CLASS__, 'add_business_price_field' ] );
 		add_action( 'woocommerce_process_product_meta', [ __CLASS__, 'save_product_meta' ], 10, 2 );
 		add_action( 'add_meta_boxes', [ __CLASS__, 'add_custom_email_metabox' ] );
 		add_action( 'save_post_product', [ __CLASS__, 'save_custom_email_metabox' ] );
 	}
 
 	public static function add_business_price_field(): void {
-		woocommerce_wp_text_input( [
-			'id'                => self::META_BUSINESS_PRICE,
-			'label'             => __( 'Business price', 'zeusweb-multishop' ),
-			'data_type'         => 'price',
-			'desc_tip'          => true,
-			'description'       => __( 'Price for Business segment (/uzleti). Leave empty to use regular price.', 'zeusweb-multishop' ),
-			'wrapper_class'     => 'form-field-wide',
-		] );
+		// No-op: business pricing removed
 	}
 
 	public static function save_product_meta( int $post_id, $post ): void {
+		// Clean up legacy meta if form submits an empty value (or remove if present)
 		if ( isset( $_POST[ self::META_BUSINESS_PRICE ] ) ) {
-			$price = wc_clean( wp_unslash( $_POST[ self::META_BUSINESS_PRICE ] ) );
-			if ( $price === '' ) {
-				delete_post_meta( $post_id, self::META_BUSINESS_PRICE );
-			} else {
-				update_post_meta( $post_id, self::META_BUSINESS_PRICE, wc_format_decimal( $price ) );
-			}
+			delete_post_meta( $post_id, self::META_BUSINESS_PRICE );
 		}
 	}
 
