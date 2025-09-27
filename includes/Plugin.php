@@ -16,7 +16,6 @@ use ZeusWeb\Multishop\Orders\SecondaryHooks;
 use ZeusWeb\Multishop\Orders\PrimaryHooks;
 use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
 use ZeusWeb\Multishop\Admin\OrdersColumns;
-use ZeusWeb\Multishop\Templates\CanvasEnforcer;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
@@ -152,8 +151,6 @@ class Plugin {
 			echo '</div>';
 		} );
 
-		// Enforce Elementor Canvas template site-wide (per user request)
-		CanvasEnforcer::init();
 		ElementorRenderer::init();
 		AstraCompat::init();
 
