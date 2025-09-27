@@ -17,12 +17,21 @@ class Renderer {
 		$theme = wp_get_theme();
 		$is_astra = $theme && ( $theme->get_template() === 'astra' || stripos( (string) $theme->get( 'Name' ), 'astra' ) !== false );
 		if ( ! $is_astra ) {
+			// Skip header/footer injection when Elementor editor/preview is active
+			if ( self::is_elementor_context() ) {
+				// No hooks in editor/preview
+			} else {
 			add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
 			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
+			}
 		}
 
 		// Safety net: if a segment is active, also inject via generic hooks at runtime (covers edge templates)
 		add_action( 'template_redirect', function () use ( $is_astra ) {
+			// Do not inject during Elementor editor/preview
+			if ( Renderer::is_elementor_context() ) {
+				return;
+			}
 			if ( ! SegmentManager::get_current_segment() ) {
 				return;
 			}
@@ -91,6 +100,10 @@ class Renderer {
 	}
 
 	public static function should_suppress_elementor_location( $should_render, $location ) {
+		// Never suppress Elementor Theme Builder while editing/previewing
+		if ( self::is_elementor_context() ) {
+			return $should_render;
+		}
 		$segment = SegmentManager::get_current_segment();
 		if ( $segment && in_array( $location, [ 'header', 'footer' ], true ) ) {
 			return false;
@@ -104,6 +117,10 @@ class Renderer {
 	}
 
 	public static function maybe_remove_elementor_theme_hooks(): void {
+		// Do not remove Elementor theme hooks while editing/previewing
+		if ( self::is_elementor_context() ) {
+			return;
+		}
 		if ( ! SegmentManager::get_current_segment() ) {
 			return;
 		}
@@ -121,6 +138,29 @@ class Renderer {
 		}
 		// Fallback via shortcode if Elementor not fully loaded here
 		echo do_shortcode( '[elementor-template id="' . intval( $template_id ) . '"]' );
+	}
+
+	private static function is_elementor_context(): bool {
+		// Quick checks for editor/preview params
+		if ( isset( $_GET['elementor-preview'] ) || isset( $_GET['elementor_library'] ) || ( isset( $_GET['action'] ) && $_GET['action'] === 'elementor' ) ) {
+			return true;
+		}
+		if ( function_exists( 'did_action' ) && did_action( 'elementor/loaded' ) ) {
+			try {
+				$plugin = \Elementor\Plugin::instance();
+				if ( $plugin ) {
+					if ( isset( $plugin->editor ) && method_exists( $plugin->editor, 'is_edit_mode' ) && $plugin->editor->is_edit_mode() ) {
+						return true;
+					}
+					if ( isset( $plugin->preview ) && method_exists( $plugin->preview, 'is_preview_mode' ) && $plugin->preview->is_preview_mode() ) {
+						return true;
+					}
+				}
+			} catch ( \Throwable $e ) {
+				// Ignore detection errors
+			}
+		}
+		return false;
 	}
 
 
