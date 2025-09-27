@@ -8,7 +8,6 @@ use ZeusWeb\Multishop\Logger\DBLogger;
 use ZeusWeb\Multishop\Install\Installer;
 use ZeusWeb\Multishop\Segments\Manager as SegmentManager;
 use ZeusWeb\Multishop\Products\Meta as ProductMeta;
-use ZeusWeb\Multishop\Pricing\Resolver as PricingResolver;
 use ZeusWeb\Multishop\Admin\Menu as AdminMenu;
 use ZeusWeb\Multishop\Rest\Routes as RestRoutes;
 use ZeusWeb\Multishop\Orders\SecondaryHooks;
@@ -75,7 +74,6 @@ class Plugin {
 		// Later steps will hook: routing, pricing, REST, Elementor, etc.
 		SegmentManager::init();
 		ProductMeta::init();
-		PricingResolver::init();
 		AdminMenu::init();
 		OrdersColumns::init();
 		RestRoutes::init();

@@ -92,11 +92,10 @@ class Routes {
 			$sku = (string) $product->get_sku();
 			$type = method_exists( $product, 'get_type' ) ? (string) $product->get_type() : 'simple';
 			$regular = (float) wc_get_price_to_display( $product );
-			$business = (string) get_post_meta( $pid, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, true );
 			$custom_email = (string) get_post_meta( $pid, \ZeusWeb\Multishop\Products\Meta::META_CUSTOM_EMAIL, true );
 			$image_id = get_post_thumbnail_id( $pid );
 			$image_url = $image_id ? (string) wp_get_attachment_url( $image_id ) : '';
-			$items[] = [ 'sku' => $sku, 'title' => get_the_title( $pid ), 'type' => $type, 'price' => $regular, 'business_price' => $business === '' ? null : (float) $business, 'custom_email' => $custom_email, 'image' => $image_url ];
+			$items[] = [ 'sku' => $sku, 'title' => get_the_title( $pid ), 'type' => $type, 'price' => $regular, 'custom_email' => $custom_email, 'image' => $image_url ];
 		}
 		wp_reset_postdata();
 		return new WP_REST_Response( [ 'items' => $items, 'page' => (int) $q->get( 'paged' ), 'max_pages' => (int) $q->max_num_pages ], 200 );
@@ -146,21 +145,7 @@ class Routes {
 				$prod = wc_get_product( $product_id );
 				if ( $prod ) {
 					$item_id = $order->add_product( $prod, $quantity );
-					// Force business pricing on mirrored order items when the segment is business
-					if ( $item_id && $segment === 'business' ) {
-						$business_meta = (string) get_post_meta( (int) $product_id, \ZeusWeb\Multishop\Products\Meta::META_BUSINESS_PRICE, true );
-						if ( $business_meta !== '' ) {
-							$unit_price = (float) $business_meta;
-							$items_map = $order->get_items();
-							if ( isset( $items_map[ (int) $item_id ] ) ) {
-								$order_item = $items_map[ (int) $item_id ];
-								$line_total = $unit_price * max( 1, (int) $quantity );
-								if ( method_exists( $order_item, 'set_subtotal' ) ) { $order_item->set_subtotal( $line_total ); }
-								if ( method_exists( $order_item, 'set_total' ) ) { $order_item->set_total( $line_total ); }
-								if ( method_exists( $order_item, 'save' ) ) { $order_item->save(); }
-							}
-						}
-					}
+					// Always use regular product prices; no business pricing override
 					$alloc_items[] = [ 'product_id' => (int) $product_id, 'variation_id' => 0, 'quantity' => $quantity ];
 				}
 			}
