@@ -16,18 +16,16 @@ class Renderer {
 		// Only use generic header/footer injection when not Astra; Astra compat handles it.
 		$theme = wp_get_theme();
 		$is_astra = $theme && ( $theme->get_template() === 'astra' || stripos( (string) $theme->get( 'Name' ), 'astra' ) !== false );
-		if ( ! $is_astra ) {
-			// Skip header/footer injection when Elementor editor/preview is active
-			if ( self::is_elementor_context() ) {
-				// No hooks in editor/preview
-			} else {
+		if ( ! $is_astra && self::should_inject() && ! self::is_elementor_context() ) {
 			add_action( 'wp_body_open', [ __CLASS__, 'render_header_template' ], 5 );
 			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
-			}
 		}
 
 		// Safety net: if a segment is active, also inject via generic hooks at runtime (covers edge templates)
 		add_action( 'template_redirect', function () use ( $is_astra ) {
+			if ( ! Renderer::should_inject() ) {
+				return;
+			}
 			// Do not inject during Elementor editor/preview
 			if ( Renderer::is_elementor_context() ) {
 				return;
@@ -47,9 +45,11 @@ class Renderer {
 			add_action( 'wp_footer', [ __CLASS__, 'render_footer_template' ], 5 );
 		}, 2 );
 
-		// If a segment is active, suppress Elementor Theme Builder header/footer to avoid duplicates.
-		add_filter( 'elementor/theme/should_render_location', [ __CLASS__, 'should_suppress_elementor_location' ], 10, 2 );
-		add_action( 'template_redirect', [ __CLASS__, 'maybe_remove_elementor_theme_hooks' ], 1 );
+		// If injecting our own templates, suppress Elementor Theme Builder header/footer to avoid duplicates.
+		if ( self::should_inject() ) {
+			add_filter( 'elementor/theme/should_render_location', [ __CLASS__, 'should_suppress_elementor_location' ], 10, 2 );
+			add_action( 'template_redirect', [ __CLASS__, 'maybe_remove_elementor_theme_hooks' ], 1 );
+		}
 	}
 
 	private static function get_template_id( string $slot ): int {
@@ -104,6 +104,10 @@ class Renderer {
 		if ( self::is_elementor_context() ) {
 			return $should_render;
 		}
+		// Only suppress when we are injecting our own header/footer
+		if ( ! self::should_inject() ) {
+			return $should_render;
+		}
 		$segment = SegmentManager::get_current_segment();
 		if ( $segment && in_array( $location, [ 'header', 'footer' ], true ) ) {
 			return false;
@@ -119,6 +123,10 @@ class Renderer {
 	public static function maybe_remove_elementor_theme_hooks(): void {
 		// Do not remove Elementor theme hooks while editing/previewing
 		if ( self::is_elementor_context() ) {
+			return;
+		}
+		// Only remove if injecting custom templates
+		if ( ! self::should_inject() ) {
 			return;
 		}
 		if ( ! SegmentManager::get_current_segment() ) {
@@ -161,6 +169,10 @@ class Renderer {
 			}
 		}
 		return false;
+	}
+
+	private static function should_inject(): bool {
+		return (bool) apply_filters( 'zw_ms_inject_header_footer', false );
 	}
 
 

@@ -19,6 +19,11 @@ class CanvasEnforcer {
 		if ( self::is_elementor_context() ) {
 			return $template;
 		}
+		// Only force Canvas if explicitly enabled via filter; default disabled to allow theme/Elementor headers/footers
+		$should_force = (bool) apply_filters( 'zw_ms_force_canvas_globally', false );
+		if ( ! $should_force ) {
+			return $template;
+		}
 		$canvas = WP_PLUGIN_DIR . '/elementor/modules/page-templates/templates/canvas.php';
 		if ( file_exists( $canvas ) ) {
 			return $canvas;
