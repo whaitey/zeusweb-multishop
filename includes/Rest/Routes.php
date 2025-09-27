@@ -330,26 +330,19 @@ class Routes {
 			if ( $val === '' ) { $all_have_keys = false; break; }
 		}
 		if ( $all_have_keys ) {
-			// Trigger Woo emails and our custom email locally
+			// Trigger only custom keys email, auto-complete, then send Completed Woo email
 			try {
 				$order->add_order_note( 'Keys delivered from Primary; triggering customer emails.' );
-				// Trigger Woo
-				$status = $order->get_status();
-				$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
-				foreach ( $emails as $email ) {
-					if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
-					if ( $status === 'processing' && $email instanceof \WC_Email_Customer_Processing_Order ) { $email->trigger( $order->get_id() ); }
-					if ( $status === 'completed' && $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
-				}
-				// Custom keys email
 				\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
-				// Auto-complete now that keys are present
 				if ( method_exists( $order, 'update_status' ) ) {
 					$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
 				}
-			} catch ( \Throwable $e ) {
-				// ignore
-			}
+				$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+				foreach ( $emails as $email ) {
+					if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
+					if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
+				}
+			} catch ( \Throwable $e ) { }
 		}
 		return new WP_REST_Response( [ 'ok' => true ], 200 );
 	}

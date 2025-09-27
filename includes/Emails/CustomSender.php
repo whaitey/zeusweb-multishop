@@ -109,7 +109,12 @@ class CustomSender {
 			$items_html .= '</div>';
 		}
 		$wrapper = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222;">{items_html}</div>';
-		return strtr( $wrapper, [ '{items_html}' => $items_html ] );
+		$content = strtr( $wrapper, [ '{items_html}' => $items_html ] );
+		// Auto-format paragraphs for any raw text in product custom content
+		if ( function_exists( 'wpautop' ) ) {
+			$content = wpautop( $content );
+		}
+		return $content;
 	}
 
 	private static function apply_placeholders( string $template, string $product_name, int $qty, string $keys_raw, string $keys_html, string $shortage ): string {

@@ -101,10 +101,7 @@ class PrimaryHooks {
 			return;
 		}
 
-		// Send Woo standard email if enabled
-		self::maybe_send_customer_email( $order );
-
-		// Send custom email with keys
+		// Send custom email with keys first
 		Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
 		CustomSender::send_order_keys_email( $order );
 		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
@@ -115,6 +112,14 @@ class PrimaryHooks {
 			}
 		} catch ( \Throwable $e ) {}
 		$order->save();
+		// After completion, trigger only Completed Woo email if enabled
+		try {
+			$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+			foreach ( $emails as $email ) {
+				if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
+				if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
+			}
+		} catch ( \Throwable $e ) {}
 		Logger::instance()->log( 'info', 'Custom email send attempted', [ 'order_id' => $order->get_id() ] );
 	}
 
