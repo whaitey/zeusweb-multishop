@@ -333,7 +333,9 @@ class Routes {
 			// Trigger only custom keys email, auto-complete, then send Completed Woo email
 			try {
 				$order->add_order_note( 'Keys delivered from Primary; triggering customer emails.' );
-				\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
+				if ( \ZeusWeb\Multishop\Emails\CustomSender::should_send_custom_email_now( $order ) ) {
+					\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
+				}
 				if ( method_exists( $order, 'update_status' ) ) {
 					$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
 				}

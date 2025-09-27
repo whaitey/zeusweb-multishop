@@ -101,10 +101,12 @@ class PrimaryHooks {
 			return;
 		}
 
-		// Send custom email with keys first
-		Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
-		CustomSender::send_order_keys_email( $order );
-		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+		// Send custom email only if Woo emails are disabled for current status or custom-only is enabled
+		if ( \ZeusWeb\Multishop\Emails\CustomSender::should_send_custom_email_now( $order ) ) {
+			Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
+			CustomSender::send_order_keys_email( $order );
+			$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
+		}
 		// Auto-complete when all keys are delivered
 		try {
 			if ( method_exists( $order, 'update_status' ) ) {
