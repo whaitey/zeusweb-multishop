@@ -109,12 +109,7 @@ class CustomSender {
 			$items_html .= '</div>';
 		}
 		$wrapper = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#222;">{items_html}</div>';
-		$content = strtr( $wrapper, [ '{items_html}' => $items_html ] );
-		// Auto-format paragraphs for any raw text in product custom content
-		if ( function_exists( 'wpautop' ) ) {
-			$content = wpautop( $content );
-		}
-		return $content;
+		return strtr( $wrapper, [ '{items_html}' => $items_html ] );
 	}
 
 	private static function apply_placeholders( string $template, string $product_name, int $qty, string $keys_raw, string $keys_html, string $shortage ): string {
@@ -126,7 +121,11 @@ class CustomSender {
 			'{keys}' => $keys_html ?: nl2br( esc_html( $keys_raw ) ),
 			'{shortage_note}' => $shortage,
 		];
-		return wp_kses_post( strtr( $template, $replacements ) );
+		$processed = strtr( $template, $replacements );
+		if ( function_exists( 'wpautop' ) ) {
+			$processed = wpautop( $processed );
+		}
+		return wp_kses_post( $processed );
 	}
 }
 
