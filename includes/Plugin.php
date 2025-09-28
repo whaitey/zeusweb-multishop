@@ -16,6 +16,7 @@ use ZeusWeb\Multishop\Orders\PrimaryHooks;
 use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
 use ZeusWeb\Multishop\Admin\OrdersColumns;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
+use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
 use ZeusWeb\Multishop\Orders\OrderNumbers;
@@ -80,7 +81,7 @@ class Plugin {
 		SecondaryHooks::init();
 		PrimaryHooks::init();
 		OrderNumbers::init();
-		// Email hooks/diagnostics removed
+		EmailHooks::init();
 
 		// Allow searching orders by customer IP address in admin (legacy CPT and HPOS orders table)
 		add_filter( 'woocommerce_shop_order_search_fields', function( array $search_fields ): array {
