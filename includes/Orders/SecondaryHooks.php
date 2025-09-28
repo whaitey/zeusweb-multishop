@@ -58,6 +58,7 @@ class SecondaryHooks {
 			'shipping' => $order->get_address( 'shipping' ),
 			'customer_note' => method_exists( $order, 'get_customer_note' ) ? (string) $order->get_customer_note() : '',
 			'items' => self::build_items_with_skus( $order ),
+			'callback_url' => home_url(),
 		];
 		if ( ! $primary || ! $primary_secret ) {
 			MirrorRetry::enqueue( $payload );

@@ -86,6 +86,7 @@ class Routes {
 	public static function allocate_keys( WP_REST_Request $request ) {
 		$params  = $request->get_json_params();
 		$site_id = sanitize_text_field( (string) ( $params['site_id'] ?? '' ) );
+		$callback_url = esc_url_raw( (string) ( $params['callback_url'] ?? '' ) );
 		$site_code = sanitize_text_field( (string) ( $params['site_code'] ?? '' ) );
 		$order_id = sanitize_text_field( (string) ( $params['order_id'] ?? '' ) );
 		$items   = is_array( $params['items'] ?? null ) ? $params['items'] : [];
@@ -203,7 +204,7 @@ class Routes {
 			// If this order originated from a Secondary (site_id != this site's ID), POST keys back
 			$local_site_id = (string) get_option( 'zw_ms_site_id' );
 			if ( $site_id !== '' && $local_site_id !== '' && $site_id !== $local_site_id ) {
-				self::post_keys_back_to_secondary( $site_id, $alloc, $remote_order_id );
+				self::post_keys_back_to_secondary( $site_id, $alloc, $remote_order_id, $callback_url );
 			}
 
 			Logger::instance()->log( 'info', 'Order mirrored (emails handled by origin site)', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
@@ -253,11 +254,11 @@ class Routes {
 		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
 	}
 
-	private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id ): void {
+	private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id, string $callback_url = '' ): void {
 		try {
 			// Look up Secondary URL by site_id from Sites table when available. For now, reuse configured Primary URL as base and rely on Secondary to call us; or extend to a registry.
 			// Minimal viable: extract Secondary callback URL from order meta if present (not available now). Skipping lookup; log only.
-			$secondary_url = (string) get_option( 'zw_ms_secondary_callback_url_' . $secondary_site_id, '' );
+			$secondary_url = $callback_url !== '' ? $callback_url : (string) get_option( 'zw_ms_secondary_callback_url_' . $secondary_site_id, '' );
 			$primary_url   = (string) get_option( 'zw_ms_primary_url', '' );
 			$base = $secondary_url !== '' ? $secondary_url : $primary_url; // fallback if custom callback URL set via option
 			$secret = (string) get_option( 'zw_ms_primary_secret', '' );
