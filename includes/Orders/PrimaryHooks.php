@@ -4,7 +4,6 @@ namespace ZeusWeb\Multishop\Orders;
 
 use ZeusWeb\Multishop\Keys\Service as KeysService;
 use ZeusWeb\Multishop\Logger\Logger;
-use ZeusWeb\Multishop\Emails\CustomSender;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -109,12 +108,7 @@ class PrimaryHooks {
 			return;
 		}
 
-		// Send custom email only if Woo emails are disabled for current status or custom-only is enabled
-		if ( \ZeusWeb\Multishop\Emails\CustomSender::should_send_custom_email_now( $order ) ) {
-			Logger::instance()->log( 'info', 'Sending custom email after allocation', [ 'order_id' => $order->get_id() ] );
-			CustomSender::send_order_keys_email( $order );
-			$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
-		}
+        // Rely on Woo emails only (no custom sender)
 		// Auto-complete when all keys are delivered
 		try {
 			if ( method_exists( $order, 'update_status' ) ) {
@@ -122,17 +116,12 @@ class PrimaryHooks {
 			}
 		} catch ( \Throwable $e ) {}
 		$order->save();
-		// After completion, trigger only Completed Woo email if enabled; fallback to custom if none sent
+        // After completion, trigger only Completed Woo email if enabled
 		try {
 			$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
-			$completed_triggered = false;
 			foreach ( $emails as $email ) {
 				if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
-				if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); $completed_triggered = true; }
-			}
-			if ( ! $completed_triggered && ! \ZeusWeb\Multishop\Emails\CustomSender::should_send_custom_email_now( $order ) ) {
-				// If Woo completed isn't enabled and we also didn't send custom earlier, send custom now
-				\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
+                if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
 			}
 		} catch ( \Throwable $e ) {}
 		Logger::instance()->log( 'info', 'Custom email send attempted', [ 'order_id' => $order->get_id() ] );
@@ -150,8 +139,12 @@ class PrimaryHooks {
 				if ( ! empty( $keys ) ) {
 					wc_add_order_item_meta( $item_id, '_zw_ms_keys', implode( "\n", array_map( 'sanitize_text_field', $keys ) ) );
 				}
+				// Maintain shortage meta accurately
 				if ( $pending > 0 && $shortage ) {
 					wc_add_order_item_meta( $item_id, '_zw_ms_shortage', $shortage );
+				} else {
+					$existing_shortage = (string) wc_get_order_item_meta( $item_id, '_zw_ms_shortage', true );
+					if ( $existing_shortage !== '' ) { wc_delete_order_item_meta( $item_id, '_zw_ms_shortage' ); }
 				}
 			}
 		}
