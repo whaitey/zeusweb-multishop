@@ -21,7 +21,6 @@ use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
 use ZeusWeb\Multishop\Orders\OrderNumbers;
 use ZeusWeb\Multishop\Payments\Enforcer as PaymentsEnforcer;
 use ZeusWeb\Multishop\Sync\Service as SyncService;
-use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -81,7 +80,6 @@ class Plugin {
 		SecondaryHooks::init();
 		PrimaryHooks::init();
 		OrderNumbers::init();
-		EmailHooks::init();
 
 		// Allow searching orders by customer IP address in admin (legacy CPT and HPOS orders table)
 		add_filter( 'woocommerce_shop_order_search_fields', function( array $search_fields ): array {
