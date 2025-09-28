@@ -68,6 +68,7 @@ class Menu {
 		// register_setting( 'zw_ms', 'zw_ms_secret' );
 		register_setting( 'zw_ms', 'zw_ms_primary_secret' );
 		register_setting( 'zw_ms', 'zw_ms_shortage_message' );
+		register_setting( 'zw_ms', 'zw_ms_custom_thankyou_url' );
 		// Email settings removed
 		// Blacklist removed
 
@@ -216,6 +217,13 @@ class Menu {
 								<p class="description"><?php esc_html_e( 'Set the alphanumeric prefix for order numbers on this site. Used as identifier across mirrored orders.', 'zeusweb-multishop' ); ?></p>
 							</td>
 						</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Custom Thank You URL', 'zeusweb-multishop' ); ?></th>
+						<td>
+							<input type="url" class="regular-text" name="zw_ms_custom_thankyou_url" value="<?php echo esc_attr( get_option( 'zw_ms_custom_thankyou_url', '' ) ); ?>" placeholder="https://example.com/thank-you" />
+							<p class="description"><?php esc_html_e( 'Optional. If set, customers will be redirected to this page after checkout. We will append order_id and key parameters so widgets can render the order.', 'zeusweb-multishop' ); ?></p>
+						</td>
+					</tr>
 						<tr>
 							<th scope="row"><?php esc_html_e( 'Mode', 'zeusweb-multishop' ); ?></th>
 							<td>

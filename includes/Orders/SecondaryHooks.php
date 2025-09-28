@@ -23,7 +23,17 @@ class SecondaryHooks {
 	}
 
 	public static function on_thankyou_notice_only( $order_id ): void {
-		// Secondary never sends emails; rely on notices and keys attached to items
+		// Optional redirect to custom thank you page
+		$custom_ty = (string) get_option( 'zw_ms_custom_thankyou_url', '' );
+		if ( $custom_ty !== '' ) {
+			$order = wc_get_order( $order_id );
+			if ( $order ) {
+				$key = method_exists( $order, 'get_order_key' ) ? (string) $order->get_order_key() : '';
+				$url = add_query_arg( [ 'order_id' => (string) $order->get_id(), 'key' => $key ], $custom_ty );
+				wp_safe_redirect( $url );
+				exit;
+			}
+		}
 	}
 
 	public static function on_order_paid( $order_id, $order ): void {

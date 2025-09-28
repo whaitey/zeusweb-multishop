@@ -22,6 +22,14 @@ class PrimaryHooks {
 		if ( $mode !== 'primary' ) { return; }
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) { return; }
+		$custom_ty = (string) get_option( 'zw_ms_custom_thankyou_url', '' );
+		if ( $custom_ty !== '' ) {
+			// Redirect once on thank-you to custom page with order context
+			$key = method_exists( $order, 'get_order_key' ) ? (string) $order->get_order_key() : '';
+			$url = add_query_arg( [ 'order_id' => (string) $order->get_id(), 'key' => $key ], $custom_ty );
+			wp_safe_redirect( $url );
+			exit;
+		}
 		if ( 'yes' === (string) $order->get_meta( '_zw_ms_custom_email_sent' ) ) { return; }
 		// Only send if ALL non-bundle items have keys (avoid early shortage-only emails)
 		$all_have_keys = true;
