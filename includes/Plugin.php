@@ -21,7 +21,6 @@ use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
 use ZeusWeb\Multishop\Orders\OrderNumbers;
 use ZeusWeb\Multishop\Payments\Enforcer as PaymentsEnforcer;
 use ZeusWeb\Multishop\Sync\Service as SyncService;
-use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -81,21 +80,7 @@ class Plugin {
 		SecondaryHooks::init();
 		PrimaryHooks::init();
 		OrderNumbers::init();
-		EmailHooks::init();
-
-		// Outgoing email diagnostics: log successes and failures of wp_mail to debug transport issues
-		add_action( 'wp_mail_succeeded', function( array $mail_data ): void {
-			Logger::instance()->log( 'info', 'wp_mail_succeeded', [
-				'to' => is_array( $mail_data['to'] ?? null ) ? implode( ',', (array) $mail_data['to'] ) : (string) ( $mail_data['to'] ?? '' ),
-				'subject' => (string) ( $mail_data['subject'] ?? '' ),
-			] );
-		} );
-		add_action( 'wp_mail_failed', function( \WP_Error $wp_error ): void {
-			Logger::instance()->log( 'error', 'wp_mail_failed', [
-				'error' => $wp_error->get_error_message(),
-				'context' => $wp_error->get_error_data(),
-			] );
-		} );
+		// Email hooks/diagnostics removed
 
 		// Allow searching orders by customer IP address in admin (legacy CPT and HPOS orders table)
 		add_filter( 'woocommerce_shop_order_search_fields', function( array $search_fields ): array {
