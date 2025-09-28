@@ -257,8 +257,9 @@ class Routes {
 		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
 	}
 
-    private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id, string $callback_url = '' ): void {
+    private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id, ?string $callback_url = '' ): void {
 		try {
+            $callback_url  = is_string( $callback_url ) ? $callback_url : '';
             $secondary_url = $callback_url !== '' ? $callback_url : (string) get_option( 'zw_ms_secondary_callback_url_' . $secondary_site_id, '' );
             $secret = (string) get_option( 'zw_ms_primary_secret', '' );
             if ( $secondary_url === '' || $secret === '' ) {
