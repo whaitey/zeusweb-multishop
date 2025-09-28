@@ -114,12 +114,17 @@ class PrimaryHooks {
 			}
 		} catch ( \Throwable $e ) {}
 		$order->save();
-		// After completion, trigger only Completed Woo email if enabled
+		// After completion, trigger only Completed Woo email if enabled; fallback to custom if none sent
 		try {
 			$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+			$completed_triggered = false;
 			foreach ( $emails as $email ) {
 				if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
-				if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
+				if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); $completed_triggered = true; }
+			}
+			if ( ! $completed_triggered && ! \ZeusWeb\Multishop\Emails\CustomSender::should_send_custom_email_now( $order ) ) {
+				// If Woo completed isn't enabled and we also didn't send custom earlier, send custom now
+				\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
 			}
 		} catch ( \Throwable $e ) {}
 		Logger::instance()->log( 'info', 'Custom email send attempted', [ 'order_id' => $order->get_id() ] );

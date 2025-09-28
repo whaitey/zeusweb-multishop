@@ -333,16 +333,22 @@ class Routes {
 			// Trigger only custom keys email, auto-complete, then send Completed Woo email
 			try {
 				$order->add_order_note( 'Keys delivered from Primary; triggering customer emails.' );
+				$custom_sent = false;
 				if ( \ZeusWeb\Multishop\Emails\CustomSender::should_send_custom_email_now( $order ) ) {
 					\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
+					$custom_sent = true;
 				}
 				if ( method_exists( $order, 'update_status' ) ) {
 					$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
 				}
 				$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+				$completed_triggered = false;
 				foreach ( $emails as $email ) {
 					if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
-					if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
+					if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); $completed_triggered = true; }
+				}
+				if ( ! $completed_triggered && ! $custom_sent ) {
+					\ZeusWeb\Multishop\Emails\CustomSender::send_order_keys_email( $order );
 				}
 			} catch ( \Throwable $e ) { }
 		}
