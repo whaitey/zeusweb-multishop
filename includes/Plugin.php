@@ -154,6 +154,18 @@ class Plugin {
 		ElementorRenderer::init();
 		// Elementor widgets
 		add_action( 'elementor/widgets/register', [ ElementorRenderer::class, 'register_widgets' ] );
+
+		// Redirect WooCommerce thank-you to custom page if configured
+		add_filter( 'woocommerce_get_return_url', function( string $return_url, $order ) {
+			$custom = (string) get_option( 'zw_ms_custom_thankyou_url', '' );
+			if ( $custom === '' ) { return $return_url; }
+			if ( $order && is_a( $order, 'WC_Order' ) ) {
+				$key = method_exists( $order, 'get_order_key' ) ? (string) $order->get_order_key() : '';
+				$custom = add_query_arg( [ 'order_id' => (string) $order->get_id(), 'key' => $key ], $custom );
+				return $custom;
+			}
+			return $return_url;
+		}, 10, 2 );
 		AstraCompat::init();
 
 		// Show shortage notice on thank-you and view-order if relevant
