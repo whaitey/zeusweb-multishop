@@ -204,10 +204,10 @@ class Routes {
             $order->set_status( 'processing' );
             $order->save();
 
-			// If this order originated from a Secondary (site_id != this site's ID), POST keys back
+            // If this order originated from a Secondary (site_id != this site's ID), POST keys back
 			$local_site_id = (string) get_option( 'zw_ms_site_id' );
 			if ( $site_id !== '' && $local_site_id !== '' && $site_id !== $local_site_id ) {
-				self::post_keys_back_to_secondary( $site_id, $alloc, $remote_order_id, $callback_url );
+                self::post_keys_back_to_secondary( $site_id, $alloc, $remote_order_id, $callback_url );
 			}
 
 			Logger::instance()->log( 'info', 'Order mirrored (emails handled by origin site)', [ 'remote_order_id' => $remote_order_id, 'site_id' => $site_id ] );
@@ -257,17 +257,16 @@ class Routes {
 		return new WP_REST_Response( [ 'allowed' => $allowed ], 200 );
 	}
 
-	private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id, string $callback_url = '' ): void {
+    private static function post_keys_back_to_secondary( string $secondary_site_id, array $allocations, string $remote_order_id, string $callback_url = '' ): void {
 		try {
-			// Look up Secondary URL by site_id from Sites table when available. For now, reuse configured Primary URL as base and rely on Secondary to call us; or extend to a registry.
-			// Minimal viable: extract Secondary callback URL from order meta if present (not available now). Skipping lookup; log only.
-			$secondary_url = $callback_url !== '' ? $callback_url : (string) get_option( 'zw_ms_secondary_callback_url_' . $secondary_site_id, '' );
-			$primary_url   = (string) get_option( 'zw_ms_primary_url', '' );
-			$base = $secondary_url !== '' ? $secondary_url : $primary_url; // fallback if custom callback URL set via option
-			$secret = (string) get_option( 'zw_ms_primary_secret', '' );
-			if ( $base === '' || $secret === '' ) { return; }
+            $secondary_url = $callback_url !== '' ? $callback_url : (string) get_option( 'zw_ms_secondary_callback_url_' . $secondary_site_id, '' );
+            $secret = (string) get_option( 'zw_ms_primary_secret', '' );
+            if ( $secondary_url === '' || $secret === '' ) {
+                \ZeusWeb\Multishop\Logger\Logger::instance()->log( 'error', 'deliver-keys: missing callback URL or secret', [ 'site_id' => $secondary_site_id, 'has_url' => $secondary_url !== '', 'has_secret' => $secret !== '' ] );
+                return;
+            }
 			$path = '/zw-ms/v1/deliver-keys';
-			$url  = rtrim( $base, '/' ) . '/wp-json' . $path;
+            $url  = rtrim( $secondary_url, '/' ) . '/wp-json' . $path;
 			$body_arr = [ 'remote_order_id' => $remote_order_id, 'allocations' => $allocations ];
 			$body = wp_json_encode( $body_arr );
 			$method = 'POST';
@@ -286,14 +285,23 @@ class Routes {
 				'timeout' => 20,
 			];
 			$response = wp_remote_post( $url, $args );
-			if ( is_wp_error( $response ) ) { return; }
+            if ( is_wp_error( $response ) ) {
+                \ZeusWeb\Multishop\Logger\Logger::instance()->log( 'error', 'deliver-keys: post failed', [ 'url' => $url, 'error' => $response->get_error_message() ] );
+                return;
+            }
+            $code = (int) wp_remote_retrieve_response_code( $response );
+            if ( $code !== 200 ) {
+                \ZeusWeb\Multishop\Logger\Logger::instance()->log( 'error', 'deliver-keys: non-200 response', [ 'url' => $url, 'status' => $code, 'body' => wp_remote_retrieve_body( $response ) ] );
+            } else {
+                \ZeusWeb\Multishop\Logger\Logger::instance()->log( 'info', 'deliver-keys: success', [ 'url' => $url, 'remote_order_id' => $remote_order_id, 'alloc_count' => count( $allocations ) ] );
+            }
 		} catch ( \Throwable $e ) {
 			// swallow; logging not available here
 		}
 	}
 
 	public static function deliver_keys( WP_REST_Request $request ) {
-		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) {
+        if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) {
 			return new WP_REST_Response( [ 'error' => 'not_secondary' ], 400 );
 		}
 		$params = $request->get_json_params();
@@ -302,6 +310,7 @@ class Routes {
 		if ( $remote_order_id === '' || empty( $allocations ) ) {
 			return new WP_REST_Response( [ 'error' => 'invalid' ], 400 );
 		}
+        \ZeusWeb\Multishop\Logger\Logger::instance()->log( 'info', 'deliver-keys received', [ 'remote_order_id' => $remote_order_id, 'alloc_count' => count( $allocations ) ] );
 		$order = wc_get_order( (int) $remote_order_id );
 		if ( ! $order ) {
 			return new WP_REST_Response( [ 'error' => 'order_not_found' ], 404 );
