@@ -179,8 +179,8 @@ class Routes {
 			if ( method_exists( $order, 'set_payment_method_title' ) ) {
 				$order->set_payment_method_title( 'Mirrored from Secondary' );
 			}
-			$order->set_status( 'processing' );
-			$order->save();
+            // Defer status update until after keys are attached so emails include keys
+            $order->save();
 
 			$alloc = KeysService::allocate_for_items( $site_id, $remote_order_id, $alloc_items );
 			$shortage_msg = (string) get_option( 'zw_ms_shortage_message', '' );
@@ -199,7 +199,10 @@ class Routes {
 					}
 				}
 			}
-			$order->save();
+            $order->save();
+            // Now set status to processing so default Woo email includes attached keys
+            $order->set_status( 'processing' );
+            $order->save();
 
 			// If this order originated from a Secondary (site_id != this site's ID), POST keys back
 			$local_site_id = (string) get_option( 'zw_ms_site_id' );

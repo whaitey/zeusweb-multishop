@@ -40,7 +40,7 @@ class Notices {
 	public static function maybe_render_keys_on_thankyou( $order_id ): void {
 		$order = wc_get_order( $order_id );
 		if ( ! $order ) { return; }
-		if ( get_option( 'zw_ms_mode', 'primary' ) !== 'secondary' ) { return; }
+		// Show keys on both sites' thank-you pages if present (origin or mirrored)
 		$has_any = false; $html = '';
 		foreach ( $order->get_items() as $item_id => $item ) {
 			$keys = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
