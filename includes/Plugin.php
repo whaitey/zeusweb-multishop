@@ -152,6 +152,8 @@ class Plugin {
 		} );
 
 		ElementorRenderer::init();
+		// Elementor widgets
+		add_action( 'elementor/widgets/register', [ ElementorRenderer::class, 'register_widgets' ] );
 		AstraCompat::init();
 
 		// Show shortage notice on thank-you and view-order if relevant

@@ -50,6 +50,11 @@ class Renderer {
 			add_filter( 'elementor/theme/should_render_location', [ __CLASS__, 'should_suppress_elementor_location' ], 10, 2 );
 			add_action( 'template_redirect', [ __CLASS__, 'maybe_remove_elementor_theme_hooks' ], 1 );
 		}
+
+    public static function register_widgets( $widgets_manager ): void {
+        require_once ZW_MS_PLUGIN_DIR . 'includes/Elementor/Widgets/PurchaseSummary.php';
+        $widgets_manager->register( new \ZeusWeb\Multishop\Elementor\Widgets\PurchaseSummary() );
+    }
 	}
 
 	private static function get_template_id( string $slot ): int {
