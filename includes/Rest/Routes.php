@@ -342,6 +342,7 @@ class Routes {
 				if ( method_exists( $order, 'update_status' ) ) {
 					$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
 				}
+				// Only trigger Completed Woo email on the origin (Secondary)
 				$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
 				$completed_triggered = false;
 				foreach ( $emails as $email ) {
