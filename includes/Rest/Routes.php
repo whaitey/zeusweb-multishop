@@ -350,14 +350,20 @@ class Routes {
 			// Trigger only custom keys email, auto-complete, then send Completed Woo email
 			try {
                 $order->add_order_note( 'Keys delivered from Primary; triggering customer emails.' );
-				if ( method_exists( $order, 'update_status' ) ) {
-					$order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
-				}
-				// Only trigger Completed Woo email on the origin (Secondary)
+                if ( method_exists( $order, 'update_status' ) ) {
+                    $order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
+                }
+                // Try Completed or fallback to Processing depending on which is enabled
                 $emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+                $completed_enabled = false; $processing_enabled = false;
                 foreach ( $emails as $email ) {
-                    if ( ! method_exists( $email, 'is_enabled' ) || ! $email->is_enabled() ) { continue; }
-                    if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); }
+                    if ( $email instanceof \WC_Email_Customer_Completed_Order && method_exists( $email, 'is_enabled' ) ) { $completed_enabled = $email->is_enabled(); }
+                    if ( $email instanceof \WC_Email_Customer_Processing_Order && method_exists( $email, 'is_enabled' ) ) { $processing_enabled = $email->is_enabled(); }
+                }
+                if ( $completed_enabled ) {
+                    foreach ( $emails as $email ) { if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); } }
+                } elseif ( $processing_enabled ) {
+                    foreach ( $emails as $email ) { if ( $email instanceof \WC_Email_Customer_Processing_Order ) { $email->trigger( $order->get_id() ); } }
                 }
 			} catch ( \Throwable $e ) { }
 		}
