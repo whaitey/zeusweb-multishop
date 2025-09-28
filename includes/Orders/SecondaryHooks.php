@@ -111,7 +111,11 @@ class SecondaryHooks {
 				$order->update_meta_data( '_zw_ms_primary_order_number', $primary_order_number );
 				$order->save();
 			}
-			// Do not attach keys or send emails here; Secondary will receive /deliver-keys to handle keys/emails locally.
+			// Attach keys for local display (thank-you/order view). Emails remain handled via deliver-keys on origin site.
+			if ( isset( $data['allocations'] ) && is_array( $data['allocations'] ) ) {
+				self::attach_keys_to_order( $order, $data['allocations'] );
+				Logger::instance()->log( 'info', 'Secondary attached keys from mirror response for display', [ 'order_id' => $order->get_id() ] );
+			}
 		}
 	}
 
