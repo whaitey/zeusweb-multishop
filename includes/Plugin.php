@@ -17,6 +17,7 @@ use ZeusWeb\Multishop\Admin\CDKeys as AdminCDKeys;
 use ZeusWeb\Multishop\Admin\OrdersColumns;
 use ZeusWeb\Multishop\Elementor\Renderer as ElementorRenderer;
 use ZeusWeb\Multishop\Emails\Hooks as EmailHooks;
+use ZeusWeb\Multishop\Emails\Queue as EmailQueue;
 use ZeusWeb\Multishop\Compat\Astra as AstraCompat;
 use ZeusWeb\Multishop\Checkout\Notices as CheckoutNotices;
 use ZeusWeb\Multishop\Orders\OrderNumbers;
@@ -82,6 +83,7 @@ class Plugin {
 		PrimaryHooks::init();
 		OrderNumbers::init();
 		EmailHooks::init();
+        EmailQueue::init();
 
 		// Email diagnostics: log successes and failures of wp_mail to debug transport issues
 		add_action( 'wp_mail_succeeded', function( array $mail_data ): void {

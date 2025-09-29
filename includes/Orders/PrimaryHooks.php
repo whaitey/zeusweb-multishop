@@ -117,23 +117,19 @@ class PrimaryHooks {
 		} catch ( \Throwable $e ) {}
 		$order->save();
 		// After completion, trigger Woo email(s) with fallback and log
-		try {
-			$emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
-			$completed_enabled = false; $processing_enabled = false;
-			foreach ( $emails as $email ) {
-				if ( $email instanceof \WC_Email_Customer_Completed_Order && method_exists( $email, 'is_enabled' ) ) { $completed_enabled = $email->is_enabled(); }
-				if ( $email instanceof \WC_Email_Customer_Processing_Order && method_exists( $email, 'is_enabled' ) ) { $processing_enabled = $email->is_enabled(); }
-			}
-			$sent_completed = false; $sent_processing = false;
-			if ( $completed_enabled ) {
-				foreach ( $emails as $email ) { if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); $sent_completed = true; } }
-			} elseif ( $processing_enabled ) {
-				foreach ( $emails as $email ) { if ( $email instanceof \WC_Email_Customer_Processing_Order ) { $email->trigger( $order->get_id() ); $sent_processing = true; } }
-			}
-			Logger::instance()->log( 'info', 'Woo emails triggered', [ 'order_id' => $order->get_id(), 'completed' => $sent_completed ? 1 : 0, 'processing' => $sent_processing ? 1 : 0 ] );
-		} catch ( \Throwable $e ) {
-			Logger::instance()->log( 'error', 'Woo email trigger failed', [ 'order_id' => $order->get_id(), 'error' => $e->getMessage() ] );
-		}
+        // Queue one email at a time to avoid provider rate limits
+        try {
+            $emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
+            $completed_enabled = false; $processing_enabled = false;
+            foreach ( $emails as $email ) {
+                if ( $email instanceof \WC_Email_Customer_Completed_Order && method_exists( $email, 'is_enabled' ) ) { $completed_enabled = $email->is_enabled(); }
+                if ( $email instanceof \WC_Email_Customer_Processing_Order && method_exists( $email, 'is_enabled' ) ) { $processing_enabled = $email->is_enabled(); }
+            }
+            $type = $completed_enabled ? 'completed' : ( $processing_enabled ? 'processing' : '' );
+            if ( $type !== '' ) {
+                \ZeusWeb\Multishop\Emails\Queue::enqueue( [ 'order_id' => (int) $order->get_id(), 'type' => $type ] );
+            }
+        } catch ( \Throwable $e ) {}
 	}
 
 	private static function attach_keys_to_order( \WC_Order $order, array $allocations ): void {

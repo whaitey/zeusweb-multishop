@@ -353,17 +353,16 @@ class Routes {
                 if ( method_exists( $order, 'update_status' ) ) {
                     $order->update_status( 'completed', 'All keys delivered. Auto-completed by Multishop.' );
                 }
-                // Try Completed or fallback to Processing depending on which is enabled
+                // Queue Completed or fallback to Processing to avoid bursts
                 $emails = function_exists( 'WC' ) && WC()->mailer() ? WC()->mailer()->get_emails() : [];
                 $completed_enabled = false; $processing_enabled = false;
                 foreach ( $emails as $email ) {
                     if ( $email instanceof \WC_Email_Customer_Completed_Order && method_exists( $email, 'is_enabled' ) ) { $completed_enabled = $email->is_enabled(); }
                     if ( $email instanceof \WC_Email_Customer_Processing_Order && method_exists( $email, 'is_enabled' ) ) { $processing_enabled = $email->is_enabled(); }
                 }
-                if ( $completed_enabled ) {
-                    foreach ( $emails as $email ) { if ( $email instanceof \WC_Email_Customer_Completed_Order ) { $email->trigger( $order->get_id() ); } }
-                } elseif ( $processing_enabled ) {
-                    foreach ( $emails as $email ) { if ( $email instanceof \WC_Email_Customer_Processing_Order ) { $email->trigger( $order->get_id() ); } }
+                $type = $completed_enabled ? 'completed' : ( $processing_enabled ? 'processing' : '' );
+                if ( $type !== '' ) {
+                    \ZeusWeb\Multishop\Emails\Queue::enqueue( [ 'order_id' => (int) $order->get_id(), 'type' => $type ] );
                 }
 			} catch ( \Throwable $e ) { }
 		}
