@@ -29,21 +29,8 @@ class PrimaryHooks {
 			wp_safe_redirect( $url );
 			exit;
 		}
-		if ( 'yes' === (string) $order->get_meta( '_zw_ms_custom_email_sent' ) ) { return; }
-		// Only send if ALL non-bundle items have keys (avoid early shortage-only emails)
-		$all_have_keys = true;
-		foreach ( $order->get_items() as $item_id => $item ) {
-			$product = $item->get_product();
-			$is_bundle_container = $product && method_exists( $product, 'is_type' ) && $product->is_type( 'bundle' );
-			if ( $is_bundle_container ) { continue; }
-			$keys = (string) wc_get_order_item_meta( $item_id, '_zw_ms_keys', true );
-			if ( $keys === '' ) { $all_have_keys = false; break; }
-		}
-		if ( ! $all_have_keys ) { return; }
-		Logger::instance()->log( 'info', 'Thankyou fallback: sending custom email', [ 'order_id' => $order->get_id() ] );
-		CustomSender::send_order_keys_email( $order );
-		$order->update_meta_data( '_zw_ms_custom_email_sent', 'yes' );
-		$order->save();
+        // Do not send emails here; all emails are queued in allocation/deliver-keys flows
+        return;
 	}
 
 	public static function on_payment_complete( $order_id ): void {
